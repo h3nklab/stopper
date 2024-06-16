@@ -154,6 +154,7 @@ NeedStop(
 {
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
+    PLIST_ENTRY pRemoveEntry = NULL;
     PSTOP_DATA pStop = NULL;
     BOOLEAN bReturn = FALSE;
     PWCHAR pstrProcessName = NULL;
@@ -240,7 +241,24 @@ NeedStop(
             }
         }
 
+        if (bReturn == TRUE)
+        {
+            pStop->lCount--;
+            if (pStop->lCount == 0)
+            {
+                pRemoveEntry = pEntry;
+            }
+        }
+
         pEntry = pEntry->Flink;
+    }
+
+    if (pRemoveEntry != NULL)
+    {
+        pStop = CONTAINING_RECORD(pRemoveEntry, STOP_DATA, listEntry);
+        RemoveStopEntry(pStop);
+        RemoveEntryList(pRemoveEntry);
+        FreeMemory(pRemoveEntry);
     }
 
 Cleanup:
@@ -363,10 +381,14 @@ OnAddStop(
     _In_ PWCHAR pstrProcessName,
     _In_ PWCHAR pstrPathContain,
     _In_ HANDLE hPid,
+    _In_ LONG lCount,
     _In_ BOOLEAN bCrash)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PSTOP_DATA pStop = NULL;
+    PLIST_ENTRY pEntry = NULL;
+    PSTOP_DATA pExistingStop = NULL;
+    BOOLEAN bAddNewEntry = TRUE;
     SIZE_T stSize = 0;
 
     if (IsEnabled() == FALSE)
@@ -392,6 +414,7 @@ OnAddStop(
         pStop->cMinor = cMinor;
         pStop->bPreOperation = bPreOperation;
         pStop->hPid = hPid;
+        pStop->lCount = lCount;
         pStop->bCrash = bCrash;
 
         if ((pstrProcessName != NULL) && (wcslen(pstrProcessName) > 0))
@@ -424,7 +447,36 @@ OnAddStop(
             RtlCopyMemory(pStop->pstrPathContain, pstrPathContain, stSize);
         }
 
-        InsertTailList(gpListStopHead, &pStop->listEntry);
+        pEntry = gpListStopHead->Flink;
+        while (pEntry != gpListStopHead)
+        {
+            pExistingStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
+            if ((pExistingStop->cMajor == pStop->cMajor) &&
+                (pExistingStop->bPreOperation == pStop->bPreOperation) &&
+                ((pExistingStop->hPid == pStop->hPid) ||
+                 (_wcsicmp(pExistingStop->pstrPathContain, pStop->pstrPathContain) == 0) ||
+                 (_wcsicmp(pExistingStop->pstrProcessName, pStop->pstrProcessName) == 0)))
+            {
+                bAddNewEntry = FALSE;
+                pExistingStop->cMinor = pStop->cMinor;
+                pExistingStop->bCrash = pStop->bCrash;
+                pExistingStop->hPid = pStop->hPid;
+                pExistingStop->lCount = pStop->lCount;
+                FreeMemory(pExistingStop->pstrPathContain);
+                pExistingStop->pstrPathContain = pStop->pstrPathContain;
+                pStop->pstrPathContain = NULL;
+                FreeMemory(pExistingStop->pstrProcessName);
+                pExistingStop->pstrProcessName = pStop->pstrProcessName;
+                pStop->pstrProcessName;
+
+                break;
+            }
+        }
+
+        if (bAddNewEntry == TRUE)
+        {
+            InsertTailList(gpListStopHead, &pStop->listEntry);
+        }
         ReleaseLock(gpStopLock);
     }
     else

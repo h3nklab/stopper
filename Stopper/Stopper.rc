@@ -3,6 +3,7 @@
 #include <ntverp.h>
 
 #define VER_FILETYPE    VFT_DRV
+#define VER_FILEVERSION 0, 0x0002, 0x0001, 0x0001
 #define VER_FILESUBTYPE VFT2_DRV_SYSTEM
 #define VER_FILEDESCRIPTION_STR     "Stopper Filter Driver"
 #define VER_INTERNALNAME_STR        "Stopper.sys"

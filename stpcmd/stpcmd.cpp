@@ -164,6 +164,7 @@ void
 Usage(
     _In_ PCWSTR pstrExe)
 {
+    std::wcout << L"stpcmd version 0.1.0.0\n";
     std::wcout << pstrExe << L" <command>\n";
     std::wcout << L"Copyright(C) 2024 Henky Purnawan\n\n";
     std::wcout << L"Command:\n";
@@ -183,6 +184,7 @@ Usage(
     std::wcout << L"   /pid <process ID>\n";
     std::wcout << L"   /proc <process image file name>\n";
     std::wcout << L"   /path <containing path string to break>\n";
+    std::wcout << L"   /count <number of hit counts>\n";
     std::wcout << L"   /act <TRUE: crash, FALSE: break>\n\n";
     std::wcout << L"DEL option:\n";
     std::wcout << L"   /mj <IRP Major number>\n";
@@ -241,6 +243,9 @@ OnAdd(
             << CONNECTION_PORT_NAME << L"\": " << result << std::endl;
         return;
     }
+
+    ZeroMemory(&msg, sizeof(msg));
+    ZeroMemory(&replyMessage, sizeof(replyMessage));
 
     msg.command = CMD_NEW_STOPPER;
 
@@ -308,6 +313,18 @@ OnAdd(
                 }
             }
         }
+        else if (_wcsicmp(argv[i], L"count") == 0)
+        {
+            i++;
+            if ((argv[i][0] == L'/') || (i == argc))
+            {
+                std::wcout << L"Syntax error on \"/count\" option\n";
+            }
+            else
+            {
+                msg.lCount = _wtol(argv[i]);
+            }
+        }
         else if (_wcsicmp(argv[i], L"/pid") == 0)
         {
             i++;
@@ -317,7 +334,7 @@ OnAdd(
             }
             else
             {
-                msg.pid = _wtol(argv[i]);
+                msg.lPid = _wtol(argv[i]);
             }
         }
         else if (_wcsicmp(argv[i], L"/proc") == 0)

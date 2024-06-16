@@ -105,12 +105,13 @@ StopperMessage(
             case CMD_NEW_STOPPER:
                 pMsg = (PSTOP_MESSAGE) pInputBuffer;
                 status = OnAddStop(pMsg->cMajor,
-                                 pMsg->cMinor,
-                                  (pMsg->cPreOperation == 0) ? FALSE : TRUE,
-                                  pMsg->strProcessName,
-                                  pMsg->strPathContain,
-                                  (HANDLE)pMsg->pid,
-                                 (pMsg->cCrash == 0) ? FALSE : TRUE);
+                                   pMsg->cMinor,
+                                   (pMsg->cPreOperation == 0) ? FALSE : TRUE,
+                                   pMsg->strProcessName,
+                                   pMsg->strPathContain,
+                                   (HANDLE)pMsg->lPid,
+                                   (pMsg->lCount == 0) ? 1 : pMsg->lCount,
+                                   (pMsg->cCrash == 0) ? FALSE : TRUE);
                 break;
 
             case CMD_DEL_STOPPER:

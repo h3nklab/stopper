@@ -28,7 +28,8 @@ typedef struct _STOP_MESSAGE
     unsigned char cPreOperation;
     wchar_t strProcessName[MAX_MESSAGE_STRING];
     wchar_t strPathContain[MAX_MESSAGE_STRING];
-    long pid;
+    long lPid;
+    long lCount;
     unsigned char cCrash;
 } STOP_MESSAGE, *PSTOP_MESSAGE;
 
