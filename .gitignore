@@ -50,3 +50,7 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+*/RC*
+*/x64/*
+x64/*
+.vs/*
