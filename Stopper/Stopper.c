@@ -340,28 +340,34 @@ CONST FLT_OPERATION_REGISTRATION Callbacks[] = {
 
 CONST FLT_REGISTRATION FilterRegistration = {
 
-    sizeof( FLT_REGISTRATION ),         //  Size
-    FLT_REGISTRATION_VERSION,           //  Version
-    0,                                  //  Flags
+    sizeof( FLT_REGISTRATION ),        //  Size
+    FLT_REGISTRATION_VERSION,          //  Version
+    0,                                 //  Flags
 
-    NULL,                               //  Context
-    Callbacks,                          //  Operation callbacks
+    NULL,                              //  Context
+    Callbacks,                         //  Operation callbacks
 
-    StopperUnload,                           //  MiniFilterUnload
+    StopperUnload,                     //  MiniFilterUnload
 
-    StopperInstanceSetup,                    //  InstanceSetup
-    StopperInstanceQueryTeardown,            //  InstanceQueryTeardown
-    StopperInstanceTeardownStart,            //  InstanceTeardownStart
-    StopperInstanceTeardownComplete,         //  InstanceTeardownComplete
+    StopperInstanceSetup,              //  InstanceSetup
+    StopperInstanceQueryTeardown,      //  InstanceQueryTeardown
+    StopperInstanceTeardownStart,      //  InstanceTeardownStart
+    StopperInstanceTeardownComplete,   //  InstanceTeardownComplete
 
-    NULL,                               //  GenerateFileName
-    NULL,                               //  GenerateDestinationFileName
-    NULL                                //  NormalizeNameComponent
+    NULL,                              //  GenerateFileName
+    NULL,                              //  GenerateDestinationFileName
+    NULL                               //  NormalizeNameComponent
 
 };
 
 
 
+/*  Return Value :
+
+    STATUS_SUCCESS - attach
+    STATUS_FLT_DO_NOT_ATTACH - do not attach
+
+--*/
 NTSTATUS
 StopperInstanceSetup (
     _In_ PCFLT_RELATED_OBJECTS FltObjects,
@@ -369,29 +375,6 @@ StopperInstanceSetup (
     _In_ DEVICE_TYPE VolumeDeviceType,
     _In_ FLT_FILESYSTEM_TYPE VolumeFilesystemType
     )
-/*++
-
-Routine Description:
-
-    This routine is called whenever a new instance is created on a volume. This
-    gives us a chance to decide if we need to attach to this volume or not.
-
-    If this routine is not defined in the registration structure, automatic
-    instances are always created.
-
-Arguments:
-
-    FltObjects - Pointer to the FLT_RELATED_OBJECTS data structure containing
-        opaque handles to this filter, instance and its associated volume.
-
-    Flags - Flags describing the reason for this attach request.
-
-Return Value:
-
-    STATUS_SUCCESS - attach
-    STATUS_FLT_DO_NOT_ATTACH - do not attach
-
---*/
 {
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( Flags );

@@ -390,6 +390,7 @@ OnAddStop(
     PSTOP_DATA pExistingStop = NULL;
     BOOLEAN bAddNewEntry = TRUE;
     SIZE_T stSize = 0;
+    BOOLEAN bLocked = FALSE;
 
     if (IsEnabled() == FALSE)
     {
@@ -401,6 +402,7 @@ OnAddStop(
 
     if (ExclusiveLock(gpStopLock, TRUE) == TRUE)
     {
+        bLocked = TRUE;
         pStop = (PSTOP_DATA) AllocateMemory(POOL_FLAG_NON_PAGED,
                                             sizeof(STOP_DATA),
                                             STOPPER_TAG);
@@ -477,7 +479,6 @@ OnAddStop(
         {
             InsertTailList(gpListStopHead, &pStop->listEntry);
         }
-        ReleaseLock(gpStopLock);
     }
     else
     {
@@ -488,6 +489,11 @@ Cleanup:
     if (NT_SUCCESS(status) == FALSE)
     {
         RemoveStopEntry(pStop);
+    }
+
+    if (bLocked == TRUE)
+    {
+        ReleaseLock(gpStopLock);
     }
 
     return status;
