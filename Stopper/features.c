@@ -171,14 +171,28 @@ NeedStop(
     FLT_ASSERT(gpStopLock);
     FLT_ASSERT(gpListStopHead);
 
-    if (SharedLock(gpStopLock, TRUE) == FALSE)
+    status = GetProcessImageFile(&pstrProcessName, &pstrPath);
+    if ((NT_SUCCESS(status) == FALSE) || (pstrProcessName == NULL))
     {
         return FALSE;
     }
 
+    if (_wcsicmp(pstrProcessName, L"stpcmd.exe") == 0)
+    {
+        return FALSE;
+    }
+
+    ExclusiveLock(gpStopLock);
+
     pEntry = gpListStopHead->Flink;
     while ((pEntry != gpListStopHead) && (bReturn == FALSE))
     {
+        FreeMemory(pstrProcessName);
+        pstrProcessName = NULL;
+
+        FreeMemory(pstrPath);
+        pstrPath = NULL;
+
         pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
 
         cStopMajor = pStop->cMajor;
@@ -288,28 +302,19 @@ OnClearStop(
     FLT_ASSERT(gpStopLock);
     FLT_ASSERT(gpListStopHead);
 
-    if (ExclusiveLock(gpStopLock, TRUE) == TRUE)
+    ExclusiveLock(gpStopLock);
+    pEntry = gpListStopHead->Flink;
+    while (pEntry != gpListStopHead)
     {
-        pEntry = gpListStopHead->Flink;
-        while (pEntry != gpListStopHead)
-        {
-            pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
-            cStopMajor = pStop->cMajor;
-            cStopMinor = pStop->cMinor;
+        pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
+        cStopMajor = pStop->cMajor;
+        cStopMinor = pStop->cMinor;
 
-            if ((pStop->bPreOperation == bPreOperation) && (cStopMajor == cMajor))
+        if ((pStop->bPreOperation == bPreOperation) && (cStopMajor == cMajor))
+        {
+            if (cStopMinor != IRP_NONE)
             {
-                if (cStopMinor != IRP_NONE)
-                {
-                    if (cStopMinor == cMinor)
-                    {
-                        RemoveStopEntry(pStop);
-                        RemoveEntryList(pEntry);
-                        FreeMemory(pEntry);
-                        break;
-                    }
-                }
-                else
+                if (cStopMinor == cMinor)
                 {
                     RemoveStopEntry(pStop);
                     RemoveEntryList(pEntry);
@@ -317,10 +322,17 @@ OnClearStop(
                     break;
                 }
             }
-            pEntry = pEntry->Flink;
+            else
+            {
+                RemoveStopEntry(pStop);
+                RemoveEntryList(pEntry);
+                FreeMemory(pEntry);
+                break;
+            }
         }
-        ReleaseLock(gpStopLock);
+        pEntry = pEntry->Flink;
     }
+    ReleaseLock(gpStopLock);
 }
 
 VOID
@@ -355,20 +367,14 @@ OnGetStopperNumber(
 
     *plNumber = 0;
 
-    if (ExclusiveLock(gpStopLock, TRUE) == TRUE)
+    ExclusiveLock(gpStopLock);
+    pEntry = gpListStopHead->Flink;
+    while (pEntry != gpListStopHead)
     {
-        pEntry = gpListStopHead->Flink;
-        while (pEntry != gpListStopHead)
-        {
-            (*plNumber)++;
-            pEntry = pEntry->Flink;
-        }
-        ReleaseLock(gpStopLock);
+        (*plNumber)++;
+        pEntry = pEntry->Flink;
     }
-    else
-    {
-        status = STATUS_LOCK_NOT_GRANTED;
-    }
+    ReleaseLock(gpStopLock);
 
     return status;
 }
@@ -390,7 +396,6 @@ OnAddStop(
     PSTOP_DATA pExistingStop = NULL;
     BOOLEAN bAddNewEntry = TRUE;
     SIZE_T stSize = 0;
-    BOOLEAN bLocked = FALSE;
 
     if (IsEnabled() == FALSE)
     {
@@ -400,89 +405,84 @@ OnAddStop(
     FLT_ASSERT(gpListStopHead);
     FLT_ASSERT(gpStopLock);
 
-    if (ExclusiveLock(gpStopLock, TRUE) == TRUE)
+    ExclusiveLock(gpStopLock);
+
+    pStop = (PSTOP_DATA) AllocateMemory(POOL_FLAG_NON_PAGED,
+                                        sizeof(STOP_DATA),
+                                        STOPPER_TAG);
+    if (pStop == NULL)
     {
-        bLocked = TRUE;
-        pStop = (PSTOP_DATA) AllocateMemory(POOL_FLAG_NON_PAGED,
-                                            sizeof(STOP_DATA),
-                                            STOPPER_TAG);
-        if (pStop == NULL)
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Cleanup;
+    }
+
+    pStop->cMajor = cMajor;
+    pStop->cMinor = cMinor;
+    pStop->bPreOperation = bPreOperation;
+    pStop->hPid = hPid;
+    pStop->lCount = lCount;
+    pStop->bCrash = bCrash;
+
+    if ((pstrProcessName != NULL) && (wcslen(pstrProcessName) > 0))
+    {
+        stSize = (wcslen(pstrProcessName) + 1) * sizeof(WCHAR);
+        pStop->pstrProcessName = (PWCHAR) AllocateMemory(POOL_FLAG_NON_PAGED,
+                                                         stSize,
+                                                         STOPPER_TAG);
+        if (pStop->pstrProcessName == NULL)
         {
             status = STATUS_INSUFFICIENT_RESOURCES;
             goto Cleanup;
         }
 
-        pStop->cMajor = cMajor;
-        pStop->cMinor = cMinor;
-        pStop->bPreOperation = bPreOperation;
-        pStop->hPid = hPid;
-        pStop->lCount = lCount;
-        pStop->bCrash = bCrash;
-
-        if ((pstrProcessName != NULL) && (wcslen(pstrProcessName) > 0))
-        {
-            stSize = (wcslen(pstrProcessName) + 1) * sizeof(WCHAR);
-            pStop->pstrProcessName = (PWCHAR) AllocateMemory(POOL_FLAG_NON_PAGED,
-                                                             stSize,
-                                                             STOPPER_TAG);
-            if (pStop->pstrProcessName == NULL)
-            {
-                status = STATUS_INSUFFICIENT_RESOURCES;
-                goto Cleanup;
-            }
-
-            RtlCopyMemory(pStop->pstrProcessName, pstrProcessName, stSize);
-        }
-
-        if ((pstrPathContain != NULL) && (wcslen(pstrPathContain) > 0))
-        {
-            stSize = (wcslen(pstrPathContain) + 1) * sizeof(WCHAR);
-            pStop->pstrPathContain = (PWCHAR) AllocateMemory(POOL_FLAG_NON_PAGED,
-                                                             stSize,
-                                                             STOPPER_TAG);
-            if (pStop->pstrPathContain == NULL)
-            {
-                status = STATUS_INSUFFICIENT_RESOURCES;
-                goto Cleanup;
-            }
-
-            RtlCopyMemory(pStop->pstrPathContain, pstrPathContain, stSize);
-        }
-
-        pEntry = gpListStopHead->Flink;
-        while (pEntry != gpListStopHead)
-        {
-            pExistingStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
-            if ((pExistingStop->cMajor == pStop->cMajor) &&
-                (pExistingStop->bPreOperation == pStop->bPreOperation) &&
-                ((pExistingStop->hPid == pStop->hPid) ||
-                 (_wcsicmp(pExistingStop->pstrPathContain, pStop->pstrPathContain) == 0) ||
-                 (_wcsicmp(pExistingStop->pstrProcessName, pStop->pstrProcessName) == 0)))
-            {
-                bAddNewEntry = FALSE;
-                pExistingStop->cMinor = pStop->cMinor;
-                pExistingStop->bCrash = pStop->bCrash;
-                pExistingStop->hPid = pStop->hPid;
-                pExistingStop->lCount = pStop->lCount;
-                FreeMemory(pExistingStop->pstrPathContain);
-                pExistingStop->pstrPathContain = pStop->pstrPathContain;
-                pStop->pstrPathContain = NULL;
-                FreeMemory(pExistingStop->pstrProcessName);
-                pExistingStop->pstrProcessName = pStop->pstrProcessName;
-                pStop->pstrProcessName;
-
-                break;
-            }
-        }
-
-        if (bAddNewEntry == TRUE)
-        {
-            InsertTailList(gpListStopHead, &pStop->listEntry);
-        }
+        RtlCopyMemory(pStop->pstrProcessName, pstrProcessName, stSize);
     }
-    else
+
+    if ((pstrPathContain != NULL) && (wcslen(pstrPathContain) > 0))
     {
-        status = STATUS_LOGON_NOT_GRANTED;
+        stSize = (wcslen(pstrPathContain) + 1) * sizeof(WCHAR);
+        pStop->pstrPathContain = (PWCHAR) AllocateMemory(POOL_FLAG_NON_PAGED,
+                                                         stSize,
+                                                         STOPPER_TAG);
+        if (pStop->pstrPathContain == NULL)
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Cleanup;
+        }
+
+        RtlCopyMemory(pStop->pstrPathContain, pstrPathContain, stSize);
+    }
+
+    pEntry = gpListStopHead->Flink;
+    while (pEntry != gpListStopHead)
+    {
+        pExistingStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
+        if ((pExistingStop->cMajor == pStop->cMajor) &&
+            (pExistingStop->bPreOperation == pStop->bPreOperation) &&
+            ((pExistingStop->hPid == pStop->hPid) ||
+             (_wcsicmp(pExistingStop->pstrPathContain, pStop->pstrPathContain) == 0) ||
+             (_wcsicmp(pExistingStop->pstrProcessName, pStop->pstrProcessName) == 0)))
+        {
+            bAddNewEntry = FALSE;
+            pExistingStop->cMinor = pStop->cMinor;
+            pExistingStop->bCrash = pStop->bCrash;
+            pExistingStop->hPid = pStop->hPid;
+            pExistingStop->lCount = pStop->lCount;
+            FreeMemory(pExistingStop->pstrPathContain);
+            pExistingStop->pstrPathContain = pStop->pstrPathContain;
+            pStop->pstrPathContain = NULL;
+            FreeMemory(pExistingStop->pstrProcessName);
+            pExistingStop->pstrProcessName = pStop->pstrProcessName;
+            pStop->pstrProcessName;
+
+            break;
+        }
+        pEntry = pEntry->Flink;
+    }
+
+    if (bAddNewEntry == TRUE)
+    {
+        InsertTailList(gpListStopHead, &pStop->listEntry);
     }
 
 Cleanup:
@@ -491,10 +491,7 @@ Cleanup:
         RemoveStopEntry(pStop);
     }
 
-    if (bLocked == TRUE)
-    {
-        ReleaseLock(gpStopLock);
-    }
+    ReleaseLock(gpStopLock);
 
     return status;
 }
@@ -513,22 +510,17 @@ OnCleanupStop(
 
     *plNumber = 0;
 
-    if (ExclusiveLock(gpStopLock, TRUE) == TRUE)
+    ExclusiveLock(gpStopLock);
+
+    while (IsListEmpty(gpListStopHead) != TRUE)
     {
-        while (IsListEmpty(gpListStopHead) != TRUE)
-        {
-            pEntry = RemoveHeadList(gpListStopHead);
-            pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
-            RemoveStopEntry(pStop);
-            FreeMemory(pEntry);
-            *plNumber++;
-        }
-        ReleaseLock(gpStopLock);
+        pEntry = RemoveHeadList(gpListStopHead);
+        pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
+        RemoveStopEntry(pStop);
+        FreeMemory(pEntry);
+        *plNumber++;
     }
-    else
-    {
-        status = STATUS_LOGON_NOT_GRANTED;
-    }
+    ReleaseLock(gpStopLock);
 
     return status;
 }
@@ -562,12 +554,7 @@ DeleteLock(
     // Acquire the lock before deleting it
     EnableDriver(FALSE);
 
-    status = ExclusiveLock(*pLock, TRUE);
-    if (NT_SUCCESS(status) == FALSE)
-    {
-        return status;
-    }
-
+    ExclusiveLock(*pLock);
     ReleaseLock(*pLock);
     status = ExDeleteResourceLite(*pLock);
     if (NT_SUCCESS(status) != FALSE)

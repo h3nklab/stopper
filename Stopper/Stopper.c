@@ -677,26 +677,24 @@ Return Value:
 
     if (gpStopLock != NULL)
     {
-        if (ExclusiveLock(gpStopLock, TRUE) != FALSE)
+        ExclusiveLock(gpStopLock);
+        if (gpListStopHead != NULL)
         {
-            if (gpListStopHead != NULL)
+            while (IsListEmpty(gpListStopHead) == FALSE)
             {
-                while (IsListEmpty(gpListStopHead) == FALSE)
+                pEntry = RemoveHeadList(gpListStopHead);
+                if (pEntry != NULL)
                 {
-                    pEntry = RemoveHeadList(gpListStopHead);
-                    if (pEntry != NULL)
-                    {
-                        FreeMemory(pEntry);
-                    }
+                    FreeMemory(pEntry);
                 }
-
-                FreeMemory(gpListStopHead);
-                gpListStopHead = NULL;
             }
 
-            ReleaseLock(gpStopLock);
-            DeleteLock(&gpStopLock);
+            FreeMemory(gpListStopHead);
+            gpListStopHead = NULL;
         }
+
+        ReleaseLock(gpStopLock);
+        DeleteLock(&gpStopLock);
     }
 
     FltUnregisterFilter(ghFilter);

@@ -1,8 +1,7 @@
 #pragma once
 
-#define SharedLock      ExAcquireResourceSharedLite
-#define ExclusiveLock   ExAcquireResourceExclusiveLite
-#define ReleaseLock     ExReleaseResourceLite
+#define ExclusiveLock   ExEnterCriticalRegionAndAcquireResourceExclusive
+#define ReleaseLock     ExReleaseResourceAndLeaveCriticalRegion
 
 #define STOPPER_TAG 'TSDH'
 
