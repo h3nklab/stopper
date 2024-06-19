@@ -838,7 +838,7 @@ Return Value:
 
     if (TRUE == NeedStop(pData->Iopb->MajorFunction,
                          pData->Iopb->MinorFunction,
-                         TRUE))
+                         FALSE))
     {
         __debugbreak();
     }
