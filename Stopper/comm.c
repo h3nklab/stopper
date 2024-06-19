@@ -9,6 +9,8 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, StopperConnect)
+#pragma alloc_text(PAGE, StopperDisconnect)
+#pragma alloc_text(PAGE, StopperMessage)
 #endif // ALLOC_PRAGMA
 
 LONG glConnectionCount = 0;

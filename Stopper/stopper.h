@@ -1,7 +1,7 @@
 #pragma once
 
-#define ExclusiveLock   ExEnterCriticalRegionAndAcquireResourceExclusive
-#define ReleaseLock     ExReleaseResourceAndLeaveCriticalRegion
+#define ExclusiveLock KeAcquireSpinLockRaiseToDpc
+#define ReleaseLock KeReleaseSpinLock
 
 #define STOPPER_TAG 'TSDH'
 
@@ -28,8 +28,8 @@ extern PFLT_FILTER ghFilter;
 extern ZWQUERYINFORMATIONPROCESS fpZwQueryInformationProcess;
 
 extern PLIST_ENTRY  gpListStopHead;
-extern PERESOURCE   gpStopLock;
-extern CHAR         gcEnabled;
+extern KSPIN_LOCK gStopLock;
+extern CHAR gcEnabled;
 
 BOOLEAN
 IsEnabled();

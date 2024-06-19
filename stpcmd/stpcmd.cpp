@@ -313,7 +313,7 @@ OnAdd(
                 }
             }
         }
-        else if (_wcsicmp(argv[i], L"count") == 0)
+        else if (_wcsicmp(argv[i], L"/count") == 0)
         {
             i++;
             if ((argv[i][0] == L'/') || (i == argc))
@@ -366,6 +366,11 @@ OnAdd(
                       argv[i],
                       wcslen(argv[i]));
             }
+        }
+        else
+        {
+            std::wcout << L"Invalid option: " << argv[i] << std::endl;
+            return;
         }
     }
 

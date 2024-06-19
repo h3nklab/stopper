@@ -65,10 +65,6 @@ NTSTATUS
 InitLock(
     _Inout_ PERESOURCE *pLock);
 
-NTSTATUS
-DeleteLock(
-    _Inout_ PERESOURCE *pLock);
-
 VOID
 RemoveStopEntry(
     _In_ PSTOP_DATA pStop);

@@ -40,6 +40,41 @@ ShowError(
     LocalFree(pstrErrorMsg);
 }
 
+wchar_t *
+GetActionString(
+    _In_ DWORD dwAction)
+{
+    static wchar_t strAction[32];
+
+    switch (dwAction)
+    {
+        case FILE_ACTION_ADDED:
+            wcscpy_s(strAction, sizeof(strAction) / sizeof(wchar_t), L"Added");
+            break;
+
+        case FILE_ACTION_REMOVED:
+            wcscpy_s(strAction, sizeof(strAction) / sizeof(wchar_t), L"Removed");
+            break;
+
+        case FILE_ACTION_MODIFIED:
+            wcscpy_s(strAction, sizeof(strAction) / sizeof(wchar_t), L"Modified");
+            break;
+
+        case FILE_ACTION_RENAMED_OLD_NAME:
+            wcscpy_s(strAction, sizeof(strAction) / sizeof(wchar_t), L"Renamed (Old name)");
+            break;
+
+        case FILE_ACTION_RENAMED_NEW_NAME:
+            wcscpy_s(strAction, sizeof(strAction) / sizeof(wchar_t), L"Renamed (New name)");
+            break;
+
+        default:
+            wcscpy_s(strAction, sizeof(strAction) / sizeof(wchar_t), L"Unknown action");
+    }
+
+    return strAction;
+}
+
 DWORD
 GetDirectoryChanges(
     _In_ PCWSTR pstrDir)
@@ -74,44 +109,64 @@ GetDirectoryChanges(
 
     pBuffer = (PCHAR) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwBufferLength);
 
-    if (ReadDirectoryChangesW(hDir,
-                              pBuffer,
-                              dwBufferLength,
-                              FALSE,
-                              FILE_NOTIFY_CHANGE_FILE_NAME |
-                              FILE_NOTIFY_CHANGE_DIR_NAME |
-                              FILE_NOTIFY_CHANGE_ATTRIBUTES |
-                              FILE_NOTIFY_CHANGE_SIZE |
-                              FILE_NOTIFY_CHANGE_LAST_WRITE |
-                              FILE_NOTIFY_CHANGE_LAST_ACCESS |
-                              FILE_NOTIFY_CHANGE_CREATION |
-                              FILE_NOTIFY_CHANGE_SECURITY,
-                              &dwReturnedLength,
-                              NULL,
-                              NULL) == FALSE)
+    while (ReadDirectoryChangesW(hDir,
+                                 pBuffer,
+                                 dwBufferLength,
+                                 FALSE,
+                                 FILE_NOTIFY_CHANGE_FILE_NAME |
+                                 FILE_NOTIFY_CHANGE_DIR_NAME |
+                                 FILE_NOTIFY_CHANGE_ATTRIBUTES |
+                                 FILE_NOTIFY_CHANGE_SIZE |
+                                 FILE_NOTIFY_CHANGE_LAST_WRITE |
+                                 FILE_NOTIFY_CHANGE_LAST_ACCESS |
+                                 FILE_NOTIFY_CHANGE_CREATION |
+                                 FILE_NOTIFY_CHANGE_SECURITY,
+                                 &dwReturnedLength,
+                                 NULL,
+                                 NULL) == TRUE)
     {
-        dwRet = GetLastError();
-        ShowError(__FUNCTIONW__, dwRet, NULL);
-        goto Cleanup;
-    }
-
-    if (dwReturnedLength > sizeof(FILE_NOTIFY_INFORMATION))
-    {
-        pNextInfo = pBuffer;
-
-        do
+        if (dwReturnedLength == 0)
         {
-            pInfo = (PFILE_NOTIFY_INFORMATION) pNextInfo;
-            PWSTR pstrFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
-                                                   HEAP_ZERO_MEMORY,
-                                                   pInfo->FileNameLength + sizeof(wchar_t));
+            // This means that we don't have enough buffer
+            HeapFree(GetProcessHeap(), 0, pBuffer);
+            dwBufferLength *= 2;
+            if (dwBufferLength > (1024 * 64))
+            {
+                std::wcout << L"Out of memory we can allocate: " << dwBufferLength << std::endl;
+                break;
+            }
 
-            CopyMemory(pstrFileName, pInfo->FileName, pInfo->FileNameLength);
-            std::wcout << pstrFileName << std::endl;
-            HeapFree(GetProcessHeap(), 0, pstrFileName);
+            pBuffer = (PCHAR) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwBufferLength);
+            if (pBuffer == NULL)
+            {
+                std::wcout << L"Failed to allocate " << dwBufferLength << L" bytes of memory\n";
+                goto Cleanup;
+            }
 
-            pNextInfo = ((PCHAR) pInfo) + pInfo->NextEntryOffset;
-        } while (pInfo->NextEntryOffset != 0);
+            std::wcout << L"Reallocate memory to " << dwBufferLength << L" bytes\n";
+            continue;
+        }
+
+        if (dwReturnedLength > sizeof(FILE_NOTIFY_INFORMATION))
+        {
+            pNextInfo = pBuffer;
+
+            do
+            {
+                pInfo = (PFILE_NOTIFY_INFORMATION) pNextInfo;
+                PWSTR pstrFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
+                                                       HEAP_ZERO_MEMORY,
+                                                       pInfo->FileNameLength + sizeof(wchar_t));
+
+                CopyMemory(pstrFileName, pInfo->FileName, pInfo->FileNameLength);
+                std::wcout << pstrFileName << L": " << GetActionString(pInfo->Action) << std::endl;
+                HeapFree(GetProcessHeap(), 0, pstrFileName);
+
+                pNextInfo = ((PCHAR) pInfo) + pInfo->NextEntryOffset;
+            } while (pInfo->NextEntryOffset != 0);
+        }
+
+        ZeroMemory(pBuffer, dwBufferLength);
     }
 
 Cleanup:

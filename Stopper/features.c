@@ -51,7 +51,7 @@ GetFileNameFromPath(
     pwPtr += (pusPath->Length / sizeof(WCHAR));
     pwPtr--;
 
-    while (*pwPtr != L'\\')
+    while ((*pwPtr != L'\\') && ((size * sizeof(WCHAR)) <= pusPath->Length))
     {
         size++;
         pwPtr--;
@@ -162,13 +162,14 @@ NeedStop(
     unsigned char cStopMajor = 0;
     unsigned char cStopMinor = 0;
     BOOLEAN bCrash = FALSE;
+    KIRQL oldIrql;
 
     if (IsEnabled() == FALSE)
     {
         return FALSE;
     }
 
-    FLT_ASSERT(gpStopLock);
+    FLT_ASSERT(gStopLock);
     FLT_ASSERT(gpListStopHead);
 
     status = GetProcessImageFile(&pstrProcessName, &pstrPath);
@@ -182,7 +183,7 @@ NeedStop(
         return FALSE;
     }
 
-    ExclusiveLock(gpStopLock);
+    oldIrql = ExclusiveLock(&gStopLock);
 
     pEntry = gpListStopHead->Flink;
     while ((pEntry != gpListStopHead) && (bReturn == FALSE))
@@ -279,7 +280,7 @@ Cleanup:
     FreeMemory(pstrProcessName);
     FreeMemory(pstrPath);
 
-    ReleaseLock(gpStopLock);
+    ReleaseLock(&gStopLock, oldIrql);
 
     if (bReturn == TRUE && bCrash == TRUE)
     {
@@ -298,11 +299,12 @@ OnClearStop(
     PSTOP_DATA pStop = NULL;
     unsigned char cStopMajor;
     unsigned char cStopMinor;
+    KIRQL oldIrql;
 
-    FLT_ASSERT(gpStopLock);
+    FLT_ASSERT(gStopLock);
     FLT_ASSERT(gpListStopHead);
 
-    ExclusiveLock(gpStopLock);
+    oldIrql = ExclusiveLock(&gStopLock);
     pEntry = gpListStopHead->Flink;
     while (pEntry != gpListStopHead)
     {
@@ -332,7 +334,8 @@ OnClearStop(
         }
         pEntry = pEntry->Flink;
     }
-    ReleaseLock(gpStopLock);
+
+    ReleaseLock(&gStopLock, oldIrql);
 }
 
 VOID
@@ -361,20 +364,22 @@ OnGetStopperNumber(
 {
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
+    KIRQL oldIrql;
 
     FLT_ASSERT(gpListStopHead);
-    FLT_ASSERT(gpStopLock);
+    FLT_ASSERT(gStopLock);
 
     *plNumber = 0;
 
-    ExclusiveLock(gpStopLock);
+    oldIrql = ExclusiveLock(&gStopLock);
     pEntry = gpListStopHead->Flink;
     while (pEntry != gpListStopHead)
     {
         (*plNumber)++;
         pEntry = pEntry->Flink;
     }
-    ReleaseLock(gpStopLock);
+
+    ReleaseLock(&gStopLock, oldIrql);
 
     return status;
 }
@@ -396,6 +401,7 @@ OnAddStop(
     PSTOP_DATA pExistingStop = NULL;
     BOOLEAN bAddNewEntry = TRUE;
     SIZE_T stSize = 0;
+    KIRQL oldIrql;
 
     if (IsEnabled() == FALSE)
     {
@@ -403,9 +409,9 @@ OnAddStop(
     }
 
     FLT_ASSERT(gpListStopHead);
-    FLT_ASSERT(gpStopLock);
+    FLT_ASSERT(gStopLock);
 
-    ExclusiveLock(gpStopLock);
+    oldIrql = ExclusiveLock(&gStopLock);
 
     pStop = (PSTOP_DATA) AllocateMemory(POOL_FLAG_NON_PAGED,
                                         sizeof(STOP_DATA),
@@ -459,21 +465,16 @@ OnAddStop(
         pExistingStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
         if ((pExistingStop->cMajor == pStop->cMajor) &&
             (pExistingStop->bPreOperation == pStop->bPreOperation) &&
-            ((pExistingStop->hPid == pStop->hPid) ||
-             (_wcsicmp(pExistingStop->pstrPathContain, pStop->pstrPathContain) == 0) ||
-             (_wcsicmp(pExistingStop->pstrProcessName, pStop->pstrProcessName) == 0)))
+            (pExistingStop->hPid == pStop->hPid) &&
+            (((pExistingStop->pstrPathContain != NULL) && (pStop->pstrPathContain != NULL)) ? 
+            (_wcsicmp(pExistingStop->pstrPathContain, pStop->pstrPathContain) == 0) : FALSE) &&
+            (((pExistingStop->pstrProcessName != NULL) && (pStop->pstrProcessName != NULL)) ?
+            (_wcsicmp(pExistingStop->pstrProcessName, pStop->pstrProcessName) == 0) : FALSE))
         {
             bAddNewEntry = FALSE;
             pExistingStop->cMinor = pStop->cMinor;
             pExistingStop->bCrash = pStop->bCrash;
-            pExistingStop->hPid = pStop->hPid;
             pExistingStop->lCount = pStop->lCount;
-            FreeMemory(pExistingStop->pstrPathContain);
-            pExistingStop->pstrPathContain = pStop->pstrPathContain;
-            pStop->pstrPathContain = NULL;
-            FreeMemory(pExistingStop->pstrProcessName);
-            pExistingStop->pstrProcessName = pStop->pstrProcessName;
-            pStop->pstrProcessName;
 
             break;
         }
@@ -491,7 +492,7 @@ Cleanup:
         RemoveStopEntry(pStop);
     }
 
-    ReleaseLock(gpStopLock);
+    ReleaseLock(&gStopLock, oldIrql);
 
     return status;
 }
@@ -503,14 +504,15 @@ OnCleanupStop(
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
     PSTOP_DATA pStop = NULL;
+    KIRQL oldIrql;
 
     FLT_ASSERT(gpListStopHead);
-    FLT_ASSERT(gpStopLock);
+    FLT_ASSERT(gStopLock);
     FLT_ASSERT(plNumber);
 
     *plNumber = 0;
 
-    ExclusiveLock(gpStopLock);
+    oldIrql = ExclusiveLock(&gStopLock);
 
     while (IsListEmpty(gpListStopHead) != TRUE)
     {
@@ -520,7 +522,8 @@ OnCleanupStop(
         FreeMemory(pEntry);
         *plNumber++;
     }
-    ReleaseLock(gpStopLock);
+
+    ReleaseLock(&gStopLock, oldIrql);
 
     return status;
 }
@@ -545,23 +548,3 @@ InitLock(
     return status;
 }
 
-NTSTATUS
-DeleteLock(
-    _Inout_ PERESOURCE *pLock)
-{
-    NTSTATUS status = STATUS_SUCCESS;
-
-    // Acquire the lock before deleting it
-    EnableDriver(FALSE);
-
-    ExclusiveLock(*pLock);
-    ReleaseLock(*pLock);
-    status = ExDeleteResourceLite(*pLock);
-    if (NT_SUCCESS(status) != FALSE)
-    {
-        FreeMemory(*pLock);
-        *pLock = NULL;
-    }
-
-    return status;
-}

@@ -26,7 +26,8 @@ Environment:
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 PLIST_ENTRY gpListStopHead = NULL;
-PERESOURCE  gpStopLock = NULL;
+//PERESOURCE  gStopLock = NULL;
+KSPIN_LOCK gStopLock;
 CHAR        gcEnabled = 1;
 
 PFLT_FILTER ghFilter = NULL;
@@ -541,11 +542,12 @@ DriverEntry (
                                                   STOPPER_TAG);
     InitializeListHead(gpListStopHead);
 
-    status = InitLock(&gpStopLock);
+    /*status = InitLock(&gStopLock);
     if (NT_SUCCESS(status) == FALSE)
     {
         return status;
-    }
+    }*/
+    KeInitializeSpinLock(&gStopLock);
 
     fpZwQueryInformationProcess = (ZWQUERYINFORMATIONPROCESS) MmGetSystemRoutineAddress(&usRoutineName);
     //
@@ -659,6 +661,7 @@ Return Value:
 --*/
 {
     PLIST_ENTRY pEntry = NULL;
+    KIRQL oldIrql;
 
     UNREFERENCED_PARAMETER( Flags );
 
@@ -675,27 +678,23 @@ Return Value:
 
     EnableDriver(FALSE);
 
-    if (gpStopLock != NULL)
+    oldIrql = ExclusiveLock(&gStopLock);
+    if (gpListStopHead != NULL)
     {
-        ExclusiveLock(gpStopLock);
-        if (gpListStopHead != NULL)
+        while (IsListEmpty(gpListStopHead) == FALSE)
         {
-            while (IsListEmpty(gpListStopHead) == FALSE)
+            pEntry = RemoveHeadList(gpListStopHead);
+            if (pEntry != NULL)
             {
-                pEntry = RemoveHeadList(gpListStopHead);
-                if (pEntry != NULL)
-                {
-                    FreeMemory(pEntry);
-                }
+                FreeMemory(pEntry);
             }
-
-            FreeMemory(gpListStopHead);
-            gpListStopHead = NULL;
         }
 
-        ReleaseLock(gpStopLock);
-        DeleteLock(&gpStopLock);
+        FreeMemory(gpListStopHead);
+        gpListStopHead = NULL;
     }
+
+    ReleaseLock(&gStopLock, oldIrql);
 
     FltUnregisterFilter(ghFilter);
 
