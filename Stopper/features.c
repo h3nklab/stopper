@@ -227,7 +227,7 @@ NeedStop(
                     goto Cleanup;
                 }
 
-                if (pstrProcessName != NULL)
+                if ((pstrProcessName != NULL) && (pStop->pstrProcessName != NULL))
                 {
                     if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
                     {
@@ -235,14 +235,11 @@ NeedStop(
                     }
                 }
 
-                if (pStop->pstrPathContain != NULL)
+                if ((pstrPath != NULL) && (pStop->pstrPathContain != NULL))
                 {
-                    if (pstrPath != NULL)
+                    if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
                     {
-                        if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
-                        {
-                            bReturn = FALSE;
-                        }
+                        bReturn = FALSE;
                     }
                 }
             }
