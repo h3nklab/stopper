@@ -85,6 +85,7 @@ GetProcessImageFile(
     ULONG ulReturnedLength = 0;
     PVOID pBuffer = NULL;
     PUNICODE_STRING pusFullPath = NULL;
+    HANDLE hCurrentProcess = NULL;
 
     FLT_ASSERT(pstrImageFile);
     FLT_ASSERT(pstrCommandLine);
@@ -109,11 +110,20 @@ GetProcessImageFile(
                                      STOPPER_TAG);
         }
 
-        status = fpZwQueryInformationProcess(ZwCurrentProcess(),
-                                             ProcessImageFileName,
-                                             pBuffer,
-                                             ulLength,
-                                             &ulReturnedLength);
+        hCurrentProcess = ZwCurrentProcess();
+        if (hCurrentProcess != NULL)
+        {
+            status = fpZwQueryInformationProcess(hCurrentProcess,
+                                                 ProcessImageFileName,
+                                                 pBuffer,
+                                                 ulLength,
+                                                 &ulReturnedLength);
+        }
+        else
+        {
+            status = STATUS_INVALID_HANDLE;
+            goto Cleanup;
+        }
     } while ((status == STATUS_INFO_LENGTH_MISMATCH) || (ulLength < ulReturnedLength));
 
     if (ulReturnedLength - (ULONG) sizeof(UNICODE_STRING) == 0)
