@@ -6,6 +6,10 @@
 #include "mem.h"
 #include "features.h"
 
+#ifdef ALLOC_PRAGMA
+#pragma alloc_text(PAGE, GetProcessImageFile)
+#endif
+
 NTSTATUS
 GetStringFromUnicode(
     _In_ POOL_FLAGS flags,
@@ -89,6 +93,8 @@ GetProcessImageFile(
 
     FLT_ASSERT(pstrImageFile);
     FLT_ASSERT(pstrCommandLine);
+
+    PAGED_CODE()
 
     *pstrImageFile = NULL;
     *pstrCommandLine = NULL;

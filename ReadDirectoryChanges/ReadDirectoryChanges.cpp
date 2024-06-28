@@ -85,6 +85,7 @@ GetDirectoryChanges(
     PCHAR pNextInfo = NULL;
     DWORD dwBufferLength = 1024 * 10;
     DWORD dwReturnedLength = 0;
+    PWSTR pstrPath = NULL;
     PFILE_NOTIFY_INFORMATION pInfo = NULL;
     PFILE_NOTIFY_INFORMATION pInfoNext = NULL;
 
@@ -105,7 +106,34 @@ GetDirectoryChanges(
         return dwRet;
     }
 
-    std::wcout << L"Opened " << pstrDir << L" successfully\n";
+    dwReturnedLength = GetFinalPathNameByHandle(hDir,
+                                                pstrPath,
+                                                dwReturnedLength,
+                                                0);
+    if (dwReturnedLength == 0)
+    {
+        dwRet = GetLastError();
+        ShowError(__FUNCTIONW__, dwRet, L"Failed getting actual path");
+        goto Cleanup;
+    }
+
+    pstrPath = (PWSTR) HeapAlloc(GetProcessHeap(),
+                                 HEAP_ZERO_MEMORY,
+                                 dwReturnedLength * sizeof(WCHAR));
+
+    if (pstrPath == NULL)
+    {
+        dwRet = GetLastError();
+        ShowError(__FUNCTIONW__, dwRet, L"Failed to allocate memory");
+        goto Cleanup;
+    }
+
+    dwReturnedLength = GetFinalPathNameByHandle(hDir,
+                                                pstrPath,
+                                                dwReturnedLength,
+                                                0);
+
+    std::wcout << L"Opened " << pstrPath << L" successfully\n";
 
     pBuffer = (PCHAR) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwBufferLength);
 
@@ -173,6 +201,11 @@ Cleanup:
     if (pBuffer != NULL)
     {
         HeapFree(GetProcessHeap(), 0, pBuffer);
+    }
+
+    if (pstrPath != NULL)
+    {
+        HeapFree(GetProcessHeap(), 0, pstrPath);
     }
 
     if (hDir != INVALID_HANDLE_VALUE)
