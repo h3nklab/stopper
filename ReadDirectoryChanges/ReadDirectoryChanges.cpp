@@ -12,8 +12,12 @@ void
 ShowError(
     _In_ PCWSTR pstrFunction,
     _In_ DWORD dwError,
-    _In_ PCWSTR pstrMsg)
+    _In_ PCWSTR pstrFormat,
+    _In_ ...)
 {
+    va_list pArgs;
+    WCHAR strMsg[2048] = {L'\0'};
+    int iResult = 0;
     PWSTR pstrErrorMsg = NULL;
     size_t stLength = 0;
     DWORD dwRet = FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
@@ -31,9 +35,15 @@ ShowError(
         return;
     }
 
-    if (pstrMsg != NULL)
+    if (pstrFormat != NULL)
     {
-        std::wcout << pstrMsg << std::endl;
+        va_start(pArgs, pstrFormat);
+        iResult = vswprintf_s(strMsg, sizeof(strMsg) / sizeof(WCHAR), pstrFormat, pArgs);
+        va_end(pArgs);
+        if (iResult != -1)
+        {
+            std::wcout << strMsg << std::endl;
+        }
     }
 
     std::wcout << dwError << L": " << pstrErrorMsg << std::endl;
@@ -102,7 +112,7 @@ GetDirectoryChanges(
     if (hDir == INVALID_HANDLE_VALUE)
     {
         dwRet = GetLastError();
-        ShowError(__FUNCTIONW__, dwRet, L"Failed opening file");
+        ShowError(__FUNCTIONW__, dwRet, L"Failed opening file %ws", pstrDir);
         return dwRet;
     }
 
@@ -113,7 +123,7 @@ GetDirectoryChanges(
     if (dwReturnedLength == 0)
     {
         dwRet = GetLastError();
-        ShowError(__FUNCTIONW__, dwRet, L"Failed getting actual path");
+        ShowError(__FUNCTIONW__, dwRet, L"Failed getting actual path %ws", pstrDir);
         goto Cleanup;
     }
 

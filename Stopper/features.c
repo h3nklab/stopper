@@ -166,7 +166,8 @@ BOOLEAN
 NeedStop(
     _In_ unsigned char cMajor,
     _In_ unsigned char cMinor,
-    _In_ BOOLEAN bPreOperation)
+    _In_ BOOLEAN bPreOperation,
+    _In_ PCUNICODE_STRING pusFileName)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
@@ -174,9 +175,8 @@ NeedStop(
     PSTOP_DATA pStop = NULL;
     BOOLEAN bReturn = FALSE;
     PWCHAR pstrProcessName = NULL;
+    PWCHAR pstrCommandLine = NULL;
     PWCHAR pstrPath = NULL;
-    unsigned char cStopMajor = 0;
-    unsigned char cStopMinor = 0;
     BOOLEAN bCrash = FALSE;
     KIRQL oldIrql;
 
@@ -188,7 +188,7 @@ NeedStop(
     FLT_ASSERT(gStopLock);
     FLT_ASSERT(gpListStopHead);
 
-    status = GetProcessImageFile(&pstrProcessName, &pstrPath);
+    status = GetProcessImageFile(&pstrProcessName, &pstrCommandLine);
     if ((NT_SUCCESS(status) == FALSE) || (pstrProcessName == NULL))
     {
         return FALSE;
@@ -207,34 +207,35 @@ NeedStop(
         FreeMemory(pstrProcessName);
         pstrProcessName = NULL;
 
+        FreeMemory(pstrCommandLine);
+        pstrCommandLine = NULL;
+
         FreeMemory(pstrPath);
         pstrPath = NULL;
 
         pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
 
-        cStopMajor = pStop->cMajor;
-        cStopMinor = pStop->cMinor;
-
-        if ((cStopMajor == cMajor) && (pStop->bPreOperation == bPreOperation))
+        if ((pStop->cMajor == cMajor) && (pStop->bPreOperation == bPreOperation))
         {
             bReturn = TRUE;
             bCrash = pStop->bCrash;
 
-            if (cStopMinor != IRP_NONE)
+            if (pStop->cMinor != IRP_NONE)
             {
-                if (cStopMinor != cMinor)
+                if (pStop->cMinor != cMinor)
                 {
                     bReturn = FALSE;
+                    pEntry = pEntry->Flink;
+                    continue;
                 }
             }
-            if ((pStop->pstrProcessName != NULL) || (pStop->pstrPathContain != NULL))
-            {
 
+            if (pStop->pstrProcessName != NULL)
+            {
                 status = GetProcessImageFile(&pstrProcessName,
-                                             &pstrPath);
+                                             &pstrCommandLine);
                 if ((NT_SUCCESS(status) == FALSE) ||
-                    (pstrProcessName == NULL) ||
-                    (pstrPath == NULL))
+                    (pstrProcessName == NULL))
                 {
                     PT_DBG_PRINT(PTDBG_TRACE_OPERATION_STATUS,
                                  ("Failed to get process image name, status = %08X\n",
@@ -243,20 +244,33 @@ NeedStop(
                     goto Cleanup;
                 }
 
-                if ((pstrProcessName != NULL) && (pStop->pstrProcessName != NULL))
+                if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
                 {
-                    if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
-                    {
-                        bReturn = FALSE;
-                    }
+                    bReturn = FALSE;
+                    pEntry = pEntry->Flink;
+                    continue;
+                }
+            }
+
+            if (pStop->pstrPathContain != NULL)
+            {
+                FreeMemory(pstrPath);
+                pstrPath = AllocateMemory(POOL_FLAG_NON_PAGED,
+                                          pusFileName->Length + sizeof(WCHAR),
+                                          STOPPER_TAG);
+                if (pstrPath == NULL)
+                {
+                    bReturn = FALSE;
+                    goto Cleanup;
                 }
 
-                if ((pstrPath != NULL) && (pStop->pstrPathContain != NULL))
+                RtlCopyMemory(pstrPath, pusFileName->Buffer, pusFileName->Length);
+
+                if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
                 {
-                    if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
-                    {
-                        bReturn = FALSE;
-                    }
+                    bReturn = FALSE;
+                    pEntry = pEntry->Flink;
+                    continue;
                 }
             }
 
@@ -265,6 +279,8 @@ NeedStop(
                 if (pStop->hPid != PsGetCurrentProcessId())
                 {
                     bReturn = FALSE;
+                    pEntry = pEntry->Flink;
+                    continue;
                 }
             }
         }
@@ -276,6 +292,8 @@ NeedStop(
             {
                 pRemoveEntry = pEntry;
             }
+
+            break;
         }
 
         pEntry = pEntry->Flink;
@@ -292,6 +310,7 @@ NeedStop(
 Cleanup:
     FreeMemory(pstrProcessName);
     FreeMemory(pstrPath);
+    FreeMemory(pstrCommandLine);
 
     ReleaseLock(&gStopLock, oldIrql);
 

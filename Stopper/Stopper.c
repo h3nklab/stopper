@@ -724,7 +724,8 @@ StopperPreOperation (
 
     if (TRUE == NeedStop(pData->Iopb->MajorFunction,
                          pData->Iopb->MinorFunction,
-                         TRUE))
+                         TRUE,
+                         &pData->Iopb->TargetFileObject->FileName))
     {
         __debugbreak();
     }
@@ -838,7 +839,8 @@ Return Value:
 
     if (TRUE == NeedStop(pData->Iopb->MajorFunction,
                          pData->Iopb->MinorFunction,
-                         FALSE))
+                         FALSE,
+                         &pData->Iopb->TargetFileObject->FileName))
     {
         __debugbreak();
     }

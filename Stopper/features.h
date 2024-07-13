@@ -59,7 +59,8 @@ BOOLEAN
 NeedStop(
     _In_ unsigned char cMajor,
     _In_ unsigned char cMinor,
-    _In_ BOOLEAN bPreOperation);
+    _In_ BOOLEAN bPreOperation,
+    _In_ PCUNICODE_STRING pusFileName);
 
 NTSTATUS
 InitLock(
