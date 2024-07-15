@@ -8,6 +8,7 @@
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, GetProcessImageFile)
+#pragma alloc_text(PAGE, NeedStop)
 #endif
 
 NTSTATUS
@@ -138,6 +139,7 @@ GetProcessImageFile(
     }
 
     pusFullPath = (PUNICODE_STRING) pBuffer;
+    pBuffer = NULL;
 
     status = GetFileNameFromPath(POOL_FLAG_NON_PAGED, 
                                  pusFullPath,
@@ -179,6 +181,8 @@ NeedStop(
     PWCHAR pstrPath = NULL;
     BOOLEAN bCrash = FALSE;
     KIRQL oldIrql;
+
+    PAGED_CODE();
 
     if (IsEnabled() == FALSE)
     {
