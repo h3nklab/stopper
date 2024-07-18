@@ -100,6 +100,7 @@ GetDirectoryChanges(
     PFILE_NOTIFY_INFORMATION pInfo = NULL;
     PFILE_NOTIFY_INFORMATION pInfoNext = NULL;
     BOOL bWrite = FALSE;
+    DWORD dwAccess = 0;
 
     std::wcout << std::endl;
 
@@ -107,13 +108,17 @@ GetDirectoryChanges(
     {
         if (_wcsicmp(pstrOption, L"/w") == 0)
         {
+            std::wcout << L"Enabling write mode\n";
             bWrite = TRUE;
         }
     }
 
+    dwAccess = (bWrite ? GENERIC_WRITE : 0) | GENERIC_READ | FILE_LIST_DIRECTORY;
+    printf("Access mode: 0x%X\n", dwAccess);
+
     hDir = CreateFile(
         pstrDir,
-        (bWrite ? GENERIC_WRITE : 0) | GENERIC_READ | FILE_LIST_DIRECTORY,
+        dwAccess,
         FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
         NULL,
         OPEN_EXISTING,
