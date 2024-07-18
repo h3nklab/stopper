@@ -173,7 +173,7 @@ NeedStop(
     PLIST_ENTRY pEntry = NULL;
     PLIST_ENTRY pRemoveEntry = NULL;
     PSTOP_DATA pStop = NULL;
-    BOOLEAN bReturn = TRUE;
+    BOOLEAN bReturn = FALSE;
     PWCHAR pstrProcessName = NULL;
     PWCHAR pstrCommandLine = NULL;
     PWCHAR pstrPath = NULL;
@@ -313,6 +313,7 @@ NeedStop(
             break;
         }
 
+        bReturn = FALSE;
         pEntry = pEntry->Flink;
     }
 
