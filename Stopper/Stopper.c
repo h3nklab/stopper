@@ -722,10 +722,7 @@ StopperPreOperation (
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (TRUE == NeedStop(pData->Iopb->MajorFunction,
-                         pData->Iopb->MinorFunction,
-                         TRUE,
-                         &pData->Iopb->TargetFileObject->FileName))
+    if (TRUE == NeedStop(TRUE, pData))
     {
         __debugbreak();
     }
@@ -837,10 +834,7 @@ Return Value:
         return FLT_POSTOP_FINISHED_PROCESSING;
     }
 
-    if (TRUE == NeedStop(pData->Iopb->MajorFunction,
-                         pData->Iopb->MinorFunction,
-                         FALSE,
-                         &pData->Iopb->TargetFileObject->FileName))
+    if (TRUE == NeedStop(FALSE, pData))
     {
         __debugbreak();
     }

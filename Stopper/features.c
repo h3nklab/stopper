@@ -166,16 +166,14 @@ Cleanup:
 
 BOOLEAN
 NeedStop(
-    _In_ unsigned char cMajor,
-    _In_ unsigned char cMinor,
     _In_ BOOLEAN bPreOperation,
-    _In_ PCUNICODE_STRING pusFileName)
+    _In_ PFLT_CALLBACK_DATA pData)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
     PLIST_ENTRY pRemoveEntry = NULL;
     PSTOP_DATA pStop = NULL;
-    BOOLEAN bReturn = FALSE;
+    BOOLEAN bReturn = TRUE;
     PWCHAR pstrProcessName = NULL;
     PWCHAR pstrCommandLine = NULL;
     PWCHAR pstrPath = NULL;
@@ -208,6 +206,8 @@ NeedStop(
     pEntry = gpListStopHead->Flink;
     while ((pEntry != gpListStopHead) && (bReturn == FALSE))
     {
+        bReturn = TRUE;
+
         FreeMemory(pstrProcessName);
         pstrProcessName = NULL;
 
@@ -219,73 +219,86 @@ NeedStop(
 
         pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
 
-        if ((pStop->cMajor == cMajor) && (pStop->bPreOperation == bPreOperation))
+        if (pStop->bPreOperation != bPreOperation)
         {
-            bReturn = TRUE;
-            bCrash = pStop->bCrash;
+            bReturn = FALSE;
+            pEntry = pEntry->Flink;
+            continue;
+        }
 
-            if (pStop->cMinor != IRP_NONE)
+        if (pStop->cMajor != IRP_NONE)
+        {
+            if (pStop->cMajor != pData->Iopb->MajorFunction)
             {
-                if (pStop->cMinor != cMinor)
-                {
-                    bReturn = FALSE;
-                    pEntry = pEntry->Flink;
-                    continue;
-                }
+                bReturn = FALSE;
+                pEntry = pEntry->Flink;
+                continue;
+            }
+        }
+
+        if (pStop->cMinor != IRP_NONE)
+        {
+            if (pStop->cMinor != pData->Iopb->MinorFunction)
+            {
+                bReturn = FALSE;
+                pEntry = pEntry->Flink;
+                continue;
+            }
+        }
+
+        if (pStop->pstrProcessName != NULL)
+        {
+            status = GetProcessImageFile(&pstrProcessName,
+                                         &pstrCommandLine);
+            if ((NT_SUCCESS(status) == FALSE) ||
+                (pstrProcessName == NULL))
+            {
+                PT_DBG_PRINT(PTDBG_TRACE_OPERATION_STATUS,
+                             ("Failed to get process image name, status = %08X\n",
+                              status));
+                bReturn = FALSE;
+                goto Cleanup;
             }
 
-            if (pStop->pstrProcessName != NULL)
+            if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
             {
-                status = GetProcessImageFile(&pstrProcessName,
-                                             &pstrCommandLine);
-                if ((NT_SUCCESS(status) == FALSE) ||
-                    (pstrProcessName == NULL))
-                {
-                    PT_DBG_PRINT(PTDBG_TRACE_OPERATION_STATUS,
-                                 ("Failed to get process image name, status = %08X\n",
-                                  status));
-                    bReturn = FALSE;
-                    goto Cleanup;
-                }
+                bReturn = FALSE;
+                pEntry = pEntry->Flink;
+                continue;
+            }
+        }
 
-                if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
-                {
-                    bReturn = FALSE;
-                    pEntry = pEntry->Flink;
-                    continue;
-                }
+        if (pStop->pstrPathContain != NULL)
+        {
+            FreeMemory(pstrPath);
+            pstrPath = AllocateMemory(POOL_FLAG_NON_PAGED,
+                                      pData->Iopb->TargetFileObject->FileName.Length + sizeof(WCHAR),
+                                      STOPPER_TAG);
+            if (pstrPath == NULL)
+            {
+                bReturn = FALSE;
+                goto Cleanup;
             }
 
-            if (pStop->pstrPathContain != NULL)
+            RtlCopyMemory(pstrPath,
+                          pData->Iopb->TargetFileObject->FileName.Buffer,
+                          pData->Iopb->TargetFileObject->FileName.Length);
+
+            if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
             {
-                FreeMemory(pstrPath);
-                pstrPath = AllocateMemory(POOL_FLAG_NON_PAGED,
-                                          pusFileName->Length + sizeof(WCHAR),
-                                          STOPPER_TAG);
-                if (pstrPath == NULL)
-                {
-                    bReturn = FALSE;
-                    goto Cleanup;
-                }
-
-                RtlCopyMemory(pstrPath, pusFileName->Buffer, pusFileName->Length);
-
-                if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
-                {
-                    bReturn = FALSE;
-                    pEntry = pEntry->Flink;
-                    continue;
-                }
+                bReturn = FALSE;
+                pEntry = pEntry->Flink;
+                continue;
             }
+        }
 
-            if (pStop->hPid != 0)
+        if (pStop->hPid != 0)
+        {
+            if (pStop->hPid != PsGetCurrentProcessId())
             {
-                if (pStop->hPid != PsGetCurrentProcessId())
-                {
-                    bReturn = FALSE;
-                    pEntry = pEntry->Flink;
-                    continue;
-                }
+                bReturn = FALSE;
+                pEntry = pEntry->Flink;
+                continue;
             }
         }
 

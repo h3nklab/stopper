@@ -357,14 +357,14 @@ OnAdd(
             i++;
             if ((argv[i][0] == L'/') || (i == argc))
             {
-            std::wcout << L"Syntax error on \"/path\" option\n";
+                std::wcout << L"Syntax error on \"/path\" option\n";
             }
             else
             {
-            wcsncpy_s(msg.strPathContain,
-                      sizeof(msg.strPathContain) / sizeof(wchar_t),
-                      argv[i],
-                      wcslen(argv[i]));
+                wcsncpy_s(msg.strPathContain,
+                          sizeof(msg.strPathContain) / sizeof(wchar_t),
+                          argv[i],
+                          wcslen(argv[i]));
             }
         }
         else
