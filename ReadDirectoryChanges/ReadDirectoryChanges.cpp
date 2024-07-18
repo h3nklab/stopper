@@ -87,7 +87,8 @@ GetActionString(
 
 DWORD
 GetDirectoryChanges(
-    _In_ PCWSTR pstrDir)
+    _In_ PCWSTR pstrDir,
+    _In_ PCWSTR pstrOption)
 {
     HANDLE hDir = NULL;
     DWORD dwRet = ERROR_SUCCESS;
@@ -98,11 +99,21 @@ GetDirectoryChanges(
     PWSTR pstrPath = NULL;
     PFILE_NOTIFY_INFORMATION pInfo = NULL;
     PFILE_NOTIFY_INFORMATION pInfoNext = NULL;
+    BOOL bWrite = FALSE;
 
     std::wcout << std::endl;
+
+    if (pstrOption != NULL)
+    {
+        if (_wcsicmp(pstrOption, L"/w") == 0)
+        {
+            bWrite = TRUE;
+        }
+    }
+
     hDir = CreateFile(
         pstrDir,
-        GENERIC_READ | FILE_LIST_DIRECTORY,
+        (bWrite ? GENERIC_WRITE : 0) | GENERIC_READ | FILE_LIST_DIRECTORY,
         FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
         NULL,
         OPEN_EXISTING,
@@ -233,5 +244,6 @@ int wmain(int argc, wchar_t **argv)
         return -1;
     }
 
-    return (int) GetDirectoryChanges(argv[1]);
+    return (int) GetDirectoryChanges(argv[1],
+                                     (argc > 2) ? argv[2] : NULL);
 }
