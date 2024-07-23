@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "share", "share", "{98619A34
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ReadDirectoryChanges", "ReadDirectoryChanges\ReadDirectoryChanges.vcxproj", "{742C5C51-983E-4345-8E5E-44EE5A759120}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "filesmlt", "filesmlt\filesmlt.vcxproj", "{82F362E8-AE51-446E-ABC6-4F8A25A6D475}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|ARM = Debug|ARM
@@ -74,6 +76,18 @@ Global
 		{742C5C51-983E-4345-8E5E-44EE5A759120}.Release|x64.Build.0 = Release|x64
 		{742C5C51-983E-4345-8E5E-44EE5A759120}.Release|x86.ActiveCfg = Release|Win32
 		{742C5C51-983E-4345-8E5E-44EE5A759120}.Release|x86.Build.0 = Release|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Debug|ARM.ActiveCfg = Debug|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Debug|ARM64.ActiveCfg = Debug|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Debug|x64.ActiveCfg = Debug|x64
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Debug|x64.Build.0 = Debug|x64
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Debug|x86.ActiveCfg = Debug|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Debug|x86.Build.0 = Debug|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Release|ARM.ActiveCfg = Release|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Release|ARM64.ActiveCfg = Release|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Release|x64.ActiveCfg = Release|x64
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Release|x64.Build.0 = Release|x64
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Release|x86.ActiveCfg = Release|Win32
+		{82F362E8-AE51-446E-ABC6-4F8A25A6D475}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
