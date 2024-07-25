@@ -50,43 +50,36 @@ ShowError(
     LocalFree(pstrErrorMsg);
 }
 
-int wmain(int argc, wchar_t **argv)
+void
+RenameSimulation(
+    _In_ PCWSTR pstrDir)
 {
-    int iRet = 0;
-    HANDLE hDir = INVALID_HANDLE_VALUE;
     HANDLE hFind = INVALID_HANDLE_VALUE;
-    PWSTR pFind = nullptr;
-    PWSTR pFileName = nullptr;
-    PWSTR pNewFileName = nullptr;
+    PWSTR pstrFind = nullptr;
+    PWSTR pstrFileName = nullptr;
+    PWSTR pstrNewFileName = nullptr;
     WIN32_FIND_DATA wfd = {0};
     size_t stLength = 0;
 
-    if (argc < 2)
-    {
-        Usage(argv[0]);
-        return -1;
-    }
+    std::wcout << L"***** IRP_MJ_SET_INFORMATION *****\n";
 
-    stLength = wcslen(argv[1]);
-    pFind = (PWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (stLength + 8) * sizeof(wchar_t));
-    if (pFind == nullptr)
+    stLength = wcslen(pstrDir);
+    pstrFind = (PWSTR) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (stLength + 8) * sizeof(wchar_t));
+    if (pstrFind == nullptr)
     {
-        iRet = (int) GetLastError();
-
         ShowError(__FUNCTIONW__,
-                  (DWORD)iRet,
+                  GetLastError(),
                   L"Failed to allocate %lu bytes of memory",
                   (stLength + 8) * sizeof(wchar_t));
         goto Cleanup;
     }
 
-    wsprintf(pFind, L"%ws\\*", argv[1]);
-    hFind = FindFirstFile(pFind, &wfd);
+    wsprintf(pstrFind, L"%ws\\*", pstrDir);
+    hFind = FindFirstFile(pstrFind, &wfd);
     if (hFind == INVALID_HANDLE_VALUE)
     {
-        iRet = (int) GetLastError();
         ShowError(__FUNCTIONW__,
-                  (DWORD)iRet,
+                  GetLastError(),
                   L"Failed on find first file");
         goto Cleanup;
     }
@@ -96,93 +89,199 @@ int wmain(int argc, wchar_t **argv)
         if ((_wcsicmp(wfd.cFileName, L".") != 0) &&
             (_wcsicmp(wfd.cFileName, L"..") != 0))
         {
-            if (pFileName != nullptr)
+            if (pstrFileName != nullptr)
             {
-                HeapFree(GetProcessHeap(), 0, pFileName);
-                pFileName = nullptr;
+                HeapFree(GetProcessHeap(), 0, pstrFileName);
+                pstrFileName = nullptr;
             }
-            if (pNewFileName != nullptr)
+            if (pstrNewFileName != nullptr)
             {
-                HeapFree(GetProcessHeap(), 0, pNewFileName);
-                pNewFileName = nullptr;
+                HeapFree(GetProcessHeap(), 0, pstrNewFileName);
+                pstrNewFileName = nullptr;
             }
 
-            pFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
-                                          HEAP_ZERO_MEMORY,
-                                          (stLength + wcslen(wfd.cFileName) + 8) * sizeof(wchar_t));
-            if (pFileName == nullptr)
+            pstrFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
+                                             HEAP_ZERO_MEMORY,
+                                             (stLength + wcslen(wfd.cFileName) + 8) * sizeof(wchar_t));
+            if (pstrFileName == nullptr)
             {
-                iRet = (int) GetLastError();
                 ShowError(__FUNCTIONW__,
-                          (DWORD) iRet,
+                          GetLastError(),
                           L"Failed to allocate memory for %ws",
                           wfd.cFileName);
                 goto Cleanup;
             }
 
-            wsprintf(pFileName, L"%ws\\%ws", argv[1], wfd.cFileName);
+            wsprintf(pstrFileName, L"%ws\\%ws", pstrDir, wfd.cFileName);
 
-            pNewFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
+            pstrNewFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
                                              HEAP_ZERO_MEMORY,
-                                             (wcslen(pFileName) + 8) * sizeof(wchar_t));
-            if (pNewFileName == nullptr)
+                                             (wcslen(pstrFileName) + 8) * sizeof(wchar_t));
+            if (pstrNewFileName == nullptr)
             {
-                iRet = (int) GetLastError();
                 ShowError(__FUNCTIONW__,
-                          (DWORD) iRet,
+                          GetLastError(),
                           L"Failed to allocate memory for target rename of %ws",
-                          pFileName);
+                          pstrFileName);
                 goto Cleanup;
             }
 
-            wsprintf(pNewFileName, L"%ws.new", pFileName);
+            wsprintf(pstrNewFileName, L"%ws.new", pstrFileName);
 
-            if (MoveFile(pFileName, pNewFileName) == FALSE)
+            if (MoveFile(pstrFileName, pstrNewFileName) == FALSE)
             {
-                iRet = (int) GetLastError();
                 ShowError(__FUNCTIONW__,
-                          (DWORD) iRet,
+                          GetLastError(),
                           L"Failed renaming %ws -> %ws",
-                          pFileName,
-                          pNewFileName);
+                          pstrFileName,
+                          pstrNewFileName);
                 goto Cleanup;
             }
 
-            if (MoveFile(pNewFileName, pFileName) == FALSE)
+            if (MoveFile(pstrNewFileName, pstrFileName) == FALSE)
             {
-                iRet = (int) GetLastError();
                 ShowError(__FUNCTIONW__,
-                          (DWORD) iRet,
+                          GetLastError(),
                           L"Failed renaming %ws -> %ws",
-                          pNewFileName,
-                          pFileName);
+                          pstrNewFileName,
+                          pstrFileName);
                 goto Cleanup;
             }
 
-            std::wcout << L"Renaming processed: " << pFileName << L" <-> " << pNewFileName << std::endl;
+            std::wcout << L"Renaming processed: " << pstrFileName << L" <-> " << pstrNewFileName << std::endl;
         }
     } while (FindNextFile(hFind, &wfd));
 Cleanup:
-    if (pFind != nullptr)
+    if (pstrFind != nullptr)
     {
-        HeapFree(GetProcessHeap(), 0, pFind);
+        HeapFree(GetProcessHeap(), 0, pstrFind);
     }
-    if (pFileName != nullptr)
+    if (pstrFileName != nullptr)
     {
-        HeapFree(GetProcessHeap(), 0, pFileName);
+        HeapFree(GetProcessHeap(), 0, pstrFileName);
     }
-    if (pNewFileName != nullptr)
+    if (pstrNewFileName != nullptr)
     {
-        HeapFree(GetProcessHeap(), 0, pNewFileName);
+        HeapFree(GetProcessHeap(), 0, pstrNewFileName);
     }
     if (hFind != INVALID_HANDLE_VALUE)
     {
         FindClose(hFind);
     }
+    std::wcout << std::endl;
+}
 
-    if (hDir != INVALID_HANDLE_VALUE)
+void
+SetAttributeSimulation(
+    _In_ PCWSTR pstrDir)
+{
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    HANDLE hFile = INVALID_HANDLE_VALUE;
+    PWSTR pstrFind = nullptr;
+    PWSTR pstrFileName = nullptr;
+    WIN32_FIND_DATA wfd = {0};
+    size_t stLength = 0;
+    DWORD dwAttr = INVALID_FILE_ATTRIBUTES;
+
+    std::wcout << L"***** IRP_MJ_SET_EA *****\n";
+
+    stLength = wcslen(pstrDir);
+    pstrFind = (PWSTR) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, (stLength + 8) * sizeof(wchar_t));
+    if (pstrFind == nullptr)
     {
-        CloseHandle(hDir);
+        ShowError(__FUNCTIONW__,
+                  GetLastError(),
+                  L"Failed to allocate %lu bytes of memory",
+                  (stLength + 8) * sizeof(wchar_t));
+        goto Cleanup;
     }
+
+    wsprintf(pstrFind, L"%ws\\*", pstrDir);
+    hFind = FindFirstFile(pstrFind, &wfd);
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        ShowError(__FUNCTIONW__,
+                  GetLastError(),
+                  L"Failed on find first file");
+        goto Cleanup;
+    }
+
+    do
+    {
+        if ((_wcsicmp(wfd.cFileName, L".") != 0) &&
+            (_wcsicmp(wfd.cFileName, L"..") != 0))
+        {
+            pstrFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
+                                          HEAP_ZERO_MEMORY,
+                                          (stLength + wcslen(wfd.cFileName) + 8) * sizeof(wchar_t));
+            if (pstrFileName == nullptr)
+            {
+                ShowError(__FUNCTIONW__,
+                          GetLastError(),
+                          L"Failed to allocate memory for %ws",
+                          wfd.cFileName);
+                goto Cleanup;
+            }
+
+            wsprintf(pstrFileName, L"%ws\\%ws", pstrDir, wfd.cFileName);
+            break;
+        }
+    } while (FindNextFile(hFind, &wfd));
+
+    if (pstrFileName != nullptr)
+    {
+        std::wcout << L"Attempting to change file " << pstrFileName << L" attribute\n";
+        dwAttr = GetFileAttributes(pstrFileName);
+        if (dwAttr == INVALID_FILE_ATTRIBUTES)
+        {
+            ShowError(__FUNCTIONW__,
+                      GetLastError(),
+                      L"Failed to get file %ws attributes",
+                      pstrFileName);
+            goto Cleanup;
+        }
+
+        if (SetFileAttributes(pstrFileName, dwAttr) == FALSE)
+        {
+            ShowError(__FUNCTIONW__,
+                      GetLastError(),
+                      L"Failed to set file %ws attributes",
+                      pstrFileName);
+            goto Cleanup;
+        }
+    }
+
+Cleanup:
+    if (hFile != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(hFile);
+    }
+    if (hFind != INVALID_HANDLE_VALUE)
+    {
+        FindClose(hFind);
+    }
+    if (pstrFind != nullptr)
+    {
+        HeapFree(GetProcessHeap(), 0, pstrFind);
+    }
+    if (pstrFileName != nullptr)
+    {
+        HeapFree(GetProcessHeap(), 0, pstrFileName);
+    }
+}
+
+int wmain(int argc, wchar_t **argv)
+{
+    int iRet = 0;
+
+    if (argc < 2)
+    {
+        Usage(argv[0]);
+        return -1;
+    }
+
+    RenameSimulation(argv[1]);
+    SetAttributeSimulation(argv[1]);
+
     return iRet;
 }
