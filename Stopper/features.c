@@ -213,15 +213,6 @@ NeedStop(
     {
         bReturn = TRUE;
 
-        FreeMemory(pstrProcessName);
-        pstrProcessName = NULL;
-
-        FreeMemory(pstrCommandLine);
-        pstrCommandLine = NULL;
-
-        FreeMemory(pstrPath);
-        pstrPath = NULL;
-
         pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
 
         if (pStop->bPreOperation != bPreOperation)
@@ -253,18 +244,6 @@ NeedStop(
 
         if (pStop->pstrProcessName != NULL)
         {
-            status = GetProcessImageFile(&pstrProcessName,
-                                         &pstrCommandLine);
-            if ((NT_SUCCESS(status) == FALSE) ||
-                (pstrProcessName == NULL))
-            {
-                PT_DBG_PRINT(PTDBG_TRACE_OPERATION_STATUS,
-                             ("Failed to get process image name, status = %08X\n",
-                              status));
-                bReturn = FALSE;
-                goto Cleanup;
-            }
-
             if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
             {
                 bReturn = FALSE;
