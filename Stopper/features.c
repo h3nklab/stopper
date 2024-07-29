@@ -100,6 +100,11 @@ GetProcessImageFile(
     *pstrImageFile = NULL;
     *pstrCommandLine = NULL;
 
+    if (KeGetCurrentIrql() > PASSIVE_LEVEL)
+    {
+        return STATUS_ACCESS_VIOLATION;
+    }
+
     if (fpZwQueryInformationProcess == NULL)
     {
         status = STATUS_INVALID_ADDRESS;
