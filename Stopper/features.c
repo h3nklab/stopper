@@ -184,6 +184,7 @@ NeedStop(
     PWCHAR pstrPath = NULL;
     BOOLEAN bCrash = FALSE;
     KIRQL oldIrql;
+    HANDLE hPid;
 
     PAGED_CODE();
 
@@ -276,9 +277,10 @@ NeedStop(
             }
         }
 
-        if (pStop->hPid != 0)
+        if (pStop->lPid != 0)
         {
-            if (pStop->hPid != PsGetCurrentProcessId())
+            hPid = PsGetCurrentProcessId();
+            if (RtlCompareMemory(&pStop->lPid, &hPid, sizeof(LONG)) == 0)
             {
                 bReturn = FALSE;
                 pEntry = pEntry->Flink;
@@ -321,6 +323,50 @@ Cleanup:
         KeBugCheck(MANUALLY_INITIATED_CRASH1);
     }
     return bReturn;
+}
+
+
+NTSTATUS
+OnGetStopperInfo(
+    _In_ PVOID pReturnBuffer,
+    _In_ ULONG ulBufferLength)
+{
+    PSTOP_DATA pStop = NULL;
+    PLIST_ENTRY pEntry = NULL;
+    KIRQL oldIrql;
+    PGET_STOP_INFO_REPLY pReply = (PGET_STOP_INFO_REPLY) pReturnBuffer;
+    ULONG ulLength;
+
+    pReply->ulCount = 0;
+    ulLength = sizeof(pReply->ulCount);
+
+    oldIrql = ExclusiveLock(&gStopLock);
+
+    pEntry = gpListStopHead->Flink;
+    while ((pEntry != gpListStopHead) && (ulLength < ulBufferLength))
+    {
+        pStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
+        pReply->stop[pReply->ulCount].cMajor = pStop->cMajor;
+        pReply->stop[pReply->ulCount].cMinor = pStop->cMinor;
+        pReply->stop[pReply->ulCount].cCrash = pStop->bCrash;
+        pReply->stop[pReply->ulCount].cPreOperation = pStop->bPreOperation;
+        pReply->stop[pReply->ulCount].lCount = pStop->lCount;
+        pReply->stop[pReply->ulCount].lPid = pStop->lPid;
+        wcscpy_s(pReply->stop[pReply->ulCount].strPathContain,
+                 sizeof(pReply->stop[pReply->ulCount]) / sizeof(WCHAR),
+                 pStop->pstrPathContain);
+        wcscpy_s(pReply->stop[pReply->ulCount].strProcessName,
+                 sizeof(pReply->stop[pReply->ulCount].strProcessName) / sizeof(WCHAR),
+                 pStop->pstrProcessName);
+
+        pReply->ulCount++;
+        pEntry = pEntry->Flink;
+        ulLength += sizeof(STOP_INFO);
+    }
+
+    ReleaseLock(&gStopLock, oldIrql);
+
+    return STATUS_SUCCESS;
 }
 
 VOID
@@ -425,7 +471,7 @@ OnAddStop(
     _In_ BOOLEAN bPreOperation,
     _In_ PWCHAR pstrProcessName,
     _In_ PWCHAR pstrPathContain,
-    _In_ HANDLE hPid,
+    _In_ LONG lPid,
     _In_ LONG lCount,
     _In_ BOOLEAN bCrash)
 {
@@ -459,7 +505,7 @@ OnAddStop(
     pStop->cMajor = cMajor;
     pStop->cMinor = cMinor;
     pStop->bPreOperation = bPreOperation;
-    pStop->hPid = hPid;
+    pStop->lPid = lPid;
     pStop->lCount = lCount;
     pStop->bCrash = bCrash;
 
@@ -499,7 +545,7 @@ OnAddStop(
         pExistingStop = CONTAINING_RECORD(pEntry, STOP_DATA, listEntry);
         if ((pExistingStop->cMajor == pStop->cMajor) &&
             (pExistingStop->bPreOperation == pStop->bPreOperation) &&
-            (pExistingStop->hPid == pStop->hPid) &&
+            (pExistingStop->lPid == pStop->lPid) &&
             (((pExistingStop->pstrPathContain != NULL) && (pStop->pstrPathContain != NULL)) ? 
             (_wcsicmp(pExistingStop->pstrPathContain, pStop->pstrPathContain) == 0) : FALSE) &&
             (((pExistingStop->pstrProcessName != NULL) && (pStop->pstrProcessName != NULL)) ?

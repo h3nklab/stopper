@@ -8,7 +8,7 @@ typedef struct _STOP_DATA
     BOOLEAN bPreOperation;
     PWCHAR pstrProcessName;
     PWCHAR pstrPathContain;
-    HANDLE hPid;
+    LONG lPid;
     LONG lCount;
     BOOLEAN bCrash;
 } STOP_DATA, *PSTOP_DATA;
@@ -51,9 +51,14 @@ OnAddStop(
     _In_ BOOLEAN bPreOperation,
     _In_ PWCHAR pstrProcessName,
     _In_ PWCHAR pstrPathContain,
-    _In_ HANDLE hPid,
+    _In_ LONG lPid,
     _In_ LONG lCount,
     _In_ BOOLEAN bCrash);
+
+NTSTATUS
+OnGetStopperInfo(
+    _In_ PVOID pReturnBuffer,
+    _In_ ULONG ulBufferLength);
 
 BOOLEAN
 NeedStop(

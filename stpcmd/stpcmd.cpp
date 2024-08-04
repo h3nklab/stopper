@@ -173,6 +173,7 @@ Usage(
     std::wcout << L"DEL: Delete a breakpoint at designated IRP event. See DEL option\n";
     std::wcout << L"CLEAN: Remove all breakpoints\n";
     std::wcout << L"COUNT: Count the breakpoints\n";
+    std::wcout << L"INFO: Get breakpoint info\n";
     std::wcout << L"CRASH: Crash the machine\n\n";
     std::wcout << L"SHOW option:\n";
     std::wcout << L"   /mj: Show major IRP list\n";
@@ -212,6 +213,24 @@ OnShow(
             ShowIrpList(&gPowerMnIrp[0],
                         sizeof(gPowerMnIrp) / sizeof(IRP_ENTRY),
                         L"**** Power minor function list ****");
+            ShowIrpList(&gLanMgrMnIrp[0],
+                        sizeof(gLanMgrMnIrp) / sizeof(IRP_ENTRY),
+                        L"**** LAN Manager minor function list ****");
+            ShowIrpList(&gFlushMnIrp[0],
+                        sizeof(gFlushMnIrp) / sizeof(IRP_ENTRY),
+                        L"**** I/O Flush minor function list ****");
+            ShowIrpList(&gLockCtrlMnIrp[0],
+                        sizeof(gLockCtrlMnIrp) / sizeof(IRP_ENTRY),
+                        L"**** Lock Control minor function list ****");
+            ShowIrpList(&gFileSysCtrlMnIrp[0],
+                        sizeof(gFileSysCtrlMnIrp) / sizeof(IRP_ENTRY),
+                        L"**** Filesystem Control minor function list ****");
+            ShowIrpList(&gDirCtrlMnIrp[0],
+                        sizeof(gDirCtrlMnIrp) / sizeof(IRP_ENTRY),
+                        L"**** Filesystem Control minor function list ****");
+            ShowIrpList(&gSysCtrlMnIrp[0],
+                        sizeof(gSysCtrlMnIrp) / sizeof(IRP_ENTRY),
+                        L"**** System Control minor function list ****");
         }
     }
 }
@@ -286,11 +305,11 @@ OnAdd(
             {
                 if (_wcsicmp(argv[i], L"true") == 0)
                 {
-                    msg.cPreOperation = 1;
+                    msg.data.cPreOperation = 1;
                 }
                 else
                 {
-                    msg.cPreOperation = 0;
+                    msg.data.cPreOperation = 0;
                 }
             }
         }
@@ -305,11 +324,11 @@ OnAdd(
             {
                 if (_wcsicmp(argv[i], L"true") == 0)
                 {
-                    msg.cCrash = 1;
+                    msg.data.cCrash = 1;
                 }
                 else
                 {
-                    msg.cCrash = 0;
+                    msg.data.cCrash = 0;
                 }
             }
         }
@@ -322,7 +341,7 @@ OnAdd(
             }
             else
             {
-                msg.lCount = _wtol(argv[i]);
+                msg.data.lCount = _wtol(argv[i]);
             }
         }
         else if (_wcsicmp(argv[i], L"/pid") == 0)
@@ -334,7 +353,7 @@ OnAdd(
             }
             else
             {
-                msg.lPid = _wtol(argv[i]);
+                msg.data.lPid = _wtol(argv[i]);
             }
         }
         else if (_wcsicmp(argv[i], L"/proc") == 0)
@@ -346,8 +365,8 @@ OnAdd(
             }
             else
             {
-                wcsncpy_s(msg.strProcessName,
-                          sizeof(msg.strProcessName) / sizeof(wchar_t),
+                wcsncpy_s(msg.data.strProcessName,
+                          sizeof(msg.data.strProcessName) / sizeof(wchar_t),
                           argv[i],
                           wcslen(argv[i]));
             }
@@ -361,8 +380,8 @@ OnAdd(
             }
             else
             {
-                wcsncpy_s(msg.strPathContain,
-                          sizeof(msg.strPathContain) / sizeof(wchar_t),
+                wcsncpy_s(msg.data.strPathContain,
+                          sizeof(msg.data.strPathContain) / sizeof(wchar_t),
                           argv[i],
                           wcslen(argv[i]));
             }
@@ -374,8 +393,8 @@ OnAdd(
         }
     }
 
-    msg.cMajor = cMajor;
-    msg.cMinor = cMinor;
+    msg.data.cMajor = cMajor;
+    msg.data.cMinor = cMinor;
 
     result = FilterSendMessage(hPort,
                                (LPVOID) &msg,
@@ -389,7 +408,7 @@ OnAdd(
     }
     else
     {
-        std::wcout << L"Sent to driver: " << replyMessage.status << std::endl;
+        std::wcout << L"Sent to driver: " << ((replyMessage.status == 0) ? L"Succeeded" : L"Failed") << std::endl;
     }
 
     CloseHandle(hPort);
@@ -462,18 +481,18 @@ OnDel(
             {
                 if (_wcsicmp(argv[i], L"true") == 0)
                 {
-                    msg.cPreOperation = 1;
+                    msg.data.cPreOperation = 1;
                 }
                 else
                 {
-                    msg.cPreOperation = 0;
+                    msg.data.cPreOperation = 0;
                 }
             }
         }
     }
 
-    msg.cMajor = cMajor;
-    msg.cMinor = cMinor;
+    msg.data.cMajor = cMajor;
+    msg.data.cMinor = cMinor;
 
     result = FilterSendMessage(hPort,
                                (LPVOID) &msg,
@@ -487,7 +506,7 @@ OnDel(
     }
     else
     {
-        std::wcout << L"Sent to driver: " << replyMessage.status << std::endl;
+        std::wcout << L"Sent to driver: " << ((replyMessage.status == 0) ? L"Succeeded" : L"Failed") << std::endl;
     }
 
     CloseHandle(hPort);
@@ -498,13 +517,9 @@ OnClean()
 {
     HRESULT result = S_OK;
     HANDLE hPort = NULL;
-    STOP_MESSAGE msg;
-    unsigned char cMajor = 0;
-    unsigned char cMinor = 0;
+    COMMAND_MESSAGE cmd;
     REPLY_MESSAGE replyMessage = {0};
     DWORD dwBytesReturned = 0;
-
-    ZeroMemory(&msg, sizeof(msg));
 
     result = FilterConnectCommunicationPort(CONNECTION_PORT_NAME,
                                             FLT_PORT_FLAG_SYNC_HANDLE,
@@ -519,14 +534,11 @@ OnClean()
         return;
     }
 
-    msg.command = CMD_CLEAN_STOPPER;
-
-    msg.cMajor = cMajor;
-    msg.cMinor = cMinor;
+    cmd.command = CMD_CLEAN_STOPPER;
 
     result = FilterSendMessage(hPort,
-                               (LPVOID) &msg,
-                               sizeof(msg),
+                               (LPVOID) &cmd,
+                               sizeof(cmd),
                                (LPVOID) &replyMessage,
                                sizeof(REPLY_MESSAGE),
                                &dwBytesReturned);
@@ -536,7 +548,7 @@ OnClean()
     }
     else
     {
-        std::wcout << L"Sent to driver: " << replyMessage.status << std::endl;
+        std::wcout << L"Sent to driver: " << ((replyMessage.status == 0) ? L"Succeeded" : L"Failed") << std::endl;
     }
 
     CloseHandle(hPort);
@@ -547,13 +559,9 @@ OnCrash()
 {
     HRESULT result = S_OK;
     HANDLE hPort = NULL;
-    STOP_MESSAGE msg;
-    unsigned char cMajor = 0;
-    unsigned char cMinor = 0;
+    COMMAND_MESSAGE cmd;
     REPLY_MESSAGE replyMessage = {0};
     DWORD dwBytesReturned = 0;
-
-    ZeroMemory(&msg, sizeof(msg));
 
     result = FilterConnectCommunicationPort(CONNECTION_PORT_NAME,
                                             FLT_PORT_FLAG_SYNC_HANDLE,
@@ -568,14 +576,11 @@ OnCrash()
         return;
     }
 
-    msg.command = CMD_CRASH;
-
-    msg.cMajor = cMajor;
-    msg.cMinor = cMinor;
+    cmd.command = CMD_CRASH;
 
     result = FilterSendMessage(hPort,
-                               (LPVOID) &msg,
-                               sizeof(msg),
+                               (LPVOID) &cmd,
+                               sizeof(cmd),
                                (LPVOID) &replyMessage,
                                sizeof(REPLY_MESSAGE),
                                &dwBytesReturned);
@@ -585,7 +590,7 @@ OnCrash()
     }
     else
     {
-        std::wcout << L"Sent to driver: " << replyMessage.status << std::endl;
+        std::wcout << L"Sent to driver: " << ((replyMessage.status == 0) ? L"Succeeded" : L"Failed") << std::endl;
     }
 
     CloseHandle(hPort);
@@ -596,13 +601,9 @@ OnGetStopNumber()
 {
     HRESULT result = S_OK;
     HANDLE hPort = NULL;
-    STOP_MESSAGE msg;
-    unsigned char cMajor = 0;
-    unsigned char cMinor = 0;
+    COMMAND_MESSAGE cmd;
     REPLY_MESSAGE replyMessage = {0};
     DWORD dwBytesReturned = 0;
-
-    ZeroMemory(&msg, sizeof(msg));
 
     result = FilterConnectCommunicationPort(CONNECTION_PORT_NAME,
                                             FLT_PORT_FLAG_SYNC_HANDLE,
@@ -617,14 +618,11 @@ OnGetStopNumber()
         return;
     }
 
-    msg.command = CMD_GET_STOPPER_NUMBER;
-
-    msg.cMajor = cMajor;
-    msg.cMinor = cMinor;
+    cmd.command = CMD_GET_STOPPER_NUMBER;
 
     result = FilterSendMessage(hPort,
-                               (LPVOID) &msg,
-                               sizeof(msg),
+                               (LPVOID) &cmd,
+                               sizeof(cmd),
                                (LPVOID) &replyMessage,
                                sizeof(REPLY_MESSAGE),
                                &dwBytesReturned);
@@ -640,7 +638,78 @@ OnGetStopNumber()
     CloseHandle(hPort);
 }
 
-int wmain(int argc, wchar_t **argv)
+void
+OnGetStopperInfo()
+{
+    HRESULT result;
+    COMMAND_MESSAGE cmd;
+    GET_STOP_INFO_REPLY info;
+    DWORD dwBytesReturned;
+    HANDLE hPort;
+    ULONG ulCount;
+    
+    cmd.command = CMD_GET_STOPPER_INFO;
+    ZeroMemory(&info, sizeof(info));
+
+
+    result = FilterConnectCommunicationPort(CONNECTION_PORT_NAME,
+                                            FLT_PORT_FLAG_SYNC_HANDLE,
+                                            NULL,
+                                            0,
+                                            NULL,
+                                            &hPort);
+    if (result != S_OK)
+    {
+        std::wcout << L"Failed to connect to driver through \""
+            << CONNECTION_PORT_NAME << L"\": " << result << std::endl;
+        return;
+    }
+
+
+    result = FilterSendMessage(hPort,
+                               (LPVOID) &cmd,
+                               sizeof(cmd),
+                               (LPVOID) &info,
+                               sizeof(info),
+                               &dwBytesReturned);
+
+    if (result != S_OK)
+    {
+        std::wcout << L"Failed to send data to driver: " << result << std::endl;
+    }
+    else
+    {
+        if (info.ulCount > 0)
+        {
+            std::wcout << "There " << ((info.ulCount > 1) ? L"are " : L"is ") << L"breakpoint"
+                << ((info.ulCount > 1) ? L"s" : L"") << L":\n";
+
+            for (ulCount = 0; ulCount < info.ulCount; ulCount++)
+            {
+                std::wcout << std::endl;
+                std::wcout << (ulCount + 1) << L". Major function: " << info.stop[ulCount].cMajor;
+                std::wcout << L" Minor function: " << info.stop[ulCount].cMinor << std::endl;
+
+                std::wcout << L"Hit count: " << info.stop[ulCount].lCount << L" on ";
+                std::wcout << ((info.stop[ulCount].cPreOperation == 0) ? L"Post " : L"Pre ");
+                std::wcout << L"Operation\n";
+
+                std::wcout << L"Breakpoint hit action: ";
+                std::wcout << ((info.stop[ulCount].cCrash == 0) ? L"Break\n" : L"Crash\n");
+
+                std::wcout << L"Process break/crash: " << info.stop[ulCount].strProcessName << std::endl;
+                std::wcout << L"Break on consisting path: " << info.stop[ulCount].strPathContain << std::endl;
+            }
+        }
+        else
+        {
+            std::wcout << L"No breakpoint set\n";
+        }
+    }
+}
+
+int
+wmain(int argc, wchar_t **argv)
 {
     if ((argc < 2) ||
         ((_wcsicmp(argv[1], L"show") != 0) &&
@@ -648,9 +717,11 @@ int wmain(int argc, wchar_t **argv)
          (_wcsicmp(argv[1], L"del") != 0) &&
          (_wcsicmp(argv[1], L"clean") != 0) &&
          (_wcsicmp(argv[1], L"crash") != 0) &&
-         (_wcsicmp(argv[1], L"count") != 0)))
+         (_wcsicmp(argv[1], L"count") != 0) &&
+         (_wcsicmp(argv[1], L"info") != 0)))
     {
         Usage(argv[0]);
+        return -1;
     }
 
     if (_wcsicmp(argv[1], L"show") == 0)
@@ -676,6 +747,10 @@ int wmain(int argc, wchar_t **argv)
     else if (_wcsicmp(argv[1], L"count") == 0)
     {
         OnGetStopNumber();
+    }
+    else if (_wcsicmp(argv[1], L"info") == 0)
+    {
+        OnGetStopperInfo();
     }
 
     return 0;

@@ -101,6 +101,7 @@ GetDirectoryChanges(
     PFILE_NOTIFY_INFORMATION pInfoNext = NULL;
     BOOL bWrite = FALSE;
     DWORD dwAccess = 0;
+    BOOL bRet = FALSE;
 
     std::wcout << std::endl;
 
@@ -163,22 +164,30 @@ GetDirectoryChanges(
 
     pBuffer = (PCHAR) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwBufferLength);
 
-    while (ReadDirectoryChangesW(hDir,
-                                 pBuffer,
-                                 dwBufferLength,
-                                 FALSE,
-                                 FILE_NOTIFY_CHANGE_FILE_NAME |
-                                 FILE_NOTIFY_CHANGE_DIR_NAME |
-                                 FILE_NOTIFY_CHANGE_ATTRIBUTES |
-                                 FILE_NOTIFY_CHANGE_SIZE |
-                                 FILE_NOTIFY_CHANGE_LAST_WRITE |
-                                 FILE_NOTIFY_CHANGE_LAST_ACCESS |
-                                 FILE_NOTIFY_CHANGE_CREATION |
-                                 FILE_NOTIFY_CHANGE_SECURITY,
-                                 &dwReturnedLength,
-                                 NULL,
-                                 NULL) == TRUE)
+    while (TRUE)
     {
+        bRet = ReadDirectoryChangesW(hDir,
+                                     pBuffer,
+                                     dwBufferLength,
+                                     FALSE,
+                                     FILE_NOTIFY_CHANGE_FILE_NAME |
+                                     FILE_NOTIFY_CHANGE_DIR_NAME |
+                                     FILE_NOTIFY_CHANGE_ATTRIBUTES |
+                                     FILE_NOTIFY_CHANGE_SIZE |
+                                     FILE_NOTIFY_CHANGE_LAST_WRITE |
+                                     FILE_NOTIFY_CHANGE_LAST_ACCESS |
+                                     FILE_NOTIFY_CHANGE_CREATION |
+                                     FILE_NOTIFY_CHANGE_SECURITY,
+                                     &dwReturnedLength,
+                                     NULL,
+                                     NULL);
+        if (bRet == FALSE)
+        {
+            ShowError(__FUNCTIONW__,
+                      GetLastError(),
+                      L"Failed on ReadDirectoryChanges");
+            break;
+        }
         if (dwReturnedLength == 0)
         {
             // This means that we don't have enough buffer
@@ -218,6 +227,11 @@ GetDirectoryChanges(
 
                 pNextInfo = ((PCHAR) pInfo) + pInfo->NextEntryOffset;
             } while (pInfo->NextEntryOffset != 0);
+        }
+        else
+        {
+            std::wcout << L"Returned memory: " << dwReturnedLength << L" bytes\n";
+            std::wcout << L"Expected returned memory: " << sizeof(FILE_NOTIFY_INFORMATION) << L" bytes\n";
         }
 
         ZeroMemory(pBuffer, dwBufferLength);

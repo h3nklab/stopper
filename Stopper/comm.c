@@ -106,19 +106,21 @@ StopperMessage(
         {
             case CMD_NEW_STOPPER:
                 pMsg = (PSTOP_MESSAGE) pInputBuffer;
-                status = OnAddStop(pMsg->cMajor,
-                                   pMsg->cMinor,
-                                   (pMsg->cPreOperation == 0) ? FALSE : TRUE,
-                                   pMsg->strProcessName,
-                                   pMsg->strPathContain,
-                                   (HANDLE)pMsg->lPid,
-                                   (pMsg->lCount == 0) ? 1 : pMsg->lCount,
-                                   (pMsg->cCrash == 0) ? FALSE : TRUE);
+                status = OnAddStop(pMsg->data.cMajor,
+                                   pMsg->data.cMinor,
+                                   (pMsg->data.cPreOperation == 0) ? FALSE : TRUE,
+                                   pMsg->data.strProcessName,
+                                   pMsg->data.strPathContain,
+                                   pMsg->data.lPid,
+                                   (pMsg->data.lCount == 0) ? 1 : pMsg->data.lCount,
+                                   (pMsg->data.cCrash == 0) ? FALSE : TRUE);
                 break;
 
             case CMD_DEL_STOPPER:
                 pMsg = (PSTOP_MESSAGE) pInputBuffer;
-                OnClearStop(pMsg->cMajor, pMsg->cMinor, (pMsg->cPreOperation == 0) ? FALSE : TRUE);
+                OnClearStop(pMsg->data.cMajor,
+                            pMsg->data.cMinor,
+                            (pMsg->data.cPreOperation == 0) ? FALSE : TRUE);
                 break;
 
             case CMD_CLEAN_STOPPER:
@@ -133,6 +135,10 @@ StopperMessage(
             case CMD_GET_STOPPER_NUMBER:
                 status = OnGetStopperNumber(&lNumber);
                 pReply->lNumber = lNumber;
+                break;
+
+            case CMD_GET_STOPPER_INFO:
+                status = OnGetStopperInfo(pOutputBuffer, ulOutputBufferLength);
                 break;
 
             default:

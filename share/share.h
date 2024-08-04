@@ -3,6 +3,7 @@
 #define IRP_NONE 0xFF
 
 #define MAX_MESSAGE_STRING  512
+#define MAX_STOPPER_INFO    64
 
 #define CONNECTION_PORT_NAME    L"\\StopperPort"
 
@@ -13,6 +14,7 @@ typedef enum _CMD_STOPPER
     CMD_CLEAN_STOPPER,
     CMD_CRASH,
     CMD_GET_STOPPER_NUMBER,
+    CMD_GET_STOPPER_INFO
 } CMD_STOPPER;
 
 typedef struct _COMMAND_MESSAGE
@@ -20,9 +22,8 @@ typedef struct _COMMAND_MESSAGE
     CMD_STOPPER command;
 } COMMAND_MESSAGE, *PCOMMAND_MESSAGE;
 
-typedef struct _STOP_MESSAGE
+typedef struct _STOP_INFO
 {
-    CMD_STOPPER command;
     unsigned char cMajor;
     unsigned char cMinor;
     unsigned char cPreOperation;
@@ -31,7 +32,20 @@ typedef struct _STOP_MESSAGE
     long lPid;
     long lCount;
     unsigned char cCrash;
+} STOP_INFO, *PSTOP_INFO;
+
+typedef struct _STOP_MESSAGE
+{
+    CMD_STOPPER command;
+    STOP_INFO data;
 } STOP_MESSAGE, *PSTOP_MESSAGE;
+
+typedef struct _GET_STOP_INFO_REPLY
+{
+    long status;
+    unsigned long ulCount;
+    STOP_INFO stop[MAX_STOPPER_INFO];
+} GET_STOP_INFO_REPLY, *PGET_STOP_INFO_REPLY;
 
 typedef struct _REPLY_MESSAGE
 {
