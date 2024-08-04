@@ -1,4 +1,4 @@
-This is a mini-filter driver project to add breakpoint in IRP process in windows for debugging purpose.
+This is a mini-filter driver project to add breakpoint in IRP events in windows for debugging purpose.
 It adds the breakpoint through command line to any IRP events in windows driver.
 
 To use:
