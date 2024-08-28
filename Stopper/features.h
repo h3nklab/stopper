@@ -65,10 +65,6 @@ NeedStop(
     _In_ BOOLEAN bPreOperation,
     _In_ PFLT_CALLBACK_DATA pData);
 
-NTSTATUS
-InitLock(
-    _Inout_ PERESOURCE *pLock);
-
 VOID
 RemoveStopEntry(
     _In_ PSTOP_DATA pStop);

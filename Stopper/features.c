@@ -183,7 +183,6 @@ NeedStop(
     PWCHAR pstrCommandLine = NULL;
     PWCHAR pstrPath = NULL;
     BOOLEAN bCrash = FALSE;
-    KIRQL oldIrql;
     HANDLE hPid;
 
     PAGED_CODE();
@@ -207,9 +206,10 @@ NeedStop(
         return FALSE;
     }
 
-    oldIrql = ExclusiveLock(&gStopLock);
-
+    ExclusiveLock();
     pEntry = gpListStopHead->Flink;
+    ReleaseLock();
+
     while ((pEntry != gpListStopHead) && (bReturn == FALSE))
     {
         bReturn = TRUE;
@@ -300,7 +300,10 @@ NeedStop(
         }
 
         bReturn = FALSE;
+
+        ExclusiveLock();
         pEntry = pEntry->Flink;
+        ReleaseLock();
     }
 
     if (pRemoveEntry != NULL)
@@ -315,8 +318,6 @@ Cleanup:
     FreeMemory(pstrProcessName);
     FreeMemory(pstrPath);
     FreeMemory(pstrCommandLine);
-
-    ReleaseLock(&gStopLock, oldIrql);
 
     if (bReturn == TRUE && bCrash == TRUE)
     {
@@ -333,14 +334,13 @@ OnGetStopperInfo(
 {
     PSTOP_DATA pStop = NULL;
     PLIST_ENTRY pEntry = NULL;
-    KIRQL oldIrql;
     PGET_STOP_INFO_REPLY pReply = (PGET_STOP_INFO_REPLY) pReturnBuffer;
     ULONG ulLength;
 
     pReply->ulCount = 0;
     ulLength = sizeof(pReply->ulCount);
 
-    oldIrql = ExclusiveLock(&gStopLock);
+    ExclusiveLock();
 
     pEntry = gpListStopHead->Flink;
     while ((pEntry != gpListStopHead) && (ulLength < ulBufferLength))
@@ -364,7 +364,7 @@ OnGetStopperInfo(
         ulLength += sizeof(STOP_INFO);
     }
 
-    ReleaseLock(&gStopLock, oldIrql);
+    ReleaseLock();
 
     return STATUS_SUCCESS;
 }
@@ -379,12 +379,11 @@ OnClearStop(
     PSTOP_DATA pStop = NULL;
     unsigned char cStopMajor;
     unsigned char cStopMinor;
-    KIRQL oldIrql;
 
     FLT_ASSERT(gStopLock);
     FLT_ASSERT(gpListStopHead);
 
-    oldIrql = ExclusiveLock(&gStopLock);
+    ExclusiveLock();
     pEntry = gpListStopHead->Flink;
     while (pEntry != gpListStopHead)
     {
@@ -415,7 +414,7 @@ OnClearStop(
         pEntry = pEntry->Flink;
     }
 
-    ReleaseLock(&gStopLock, oldIrql);
+    ReleaseLock();
 }
 
 VOID
@@ -444,14 +443,13 @@ OnGetStopperNumber(
 {
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
-    KIRQL oldIrql;
 
     FLT_ASSERT(gpListStopHead);
     FLT_ASSERT(gStopLock);
 
     *plNumber = 0;
 
-    oldIrql = ExclusiveLock(&gStopLock);
+    ExclusiveLock();
     pEntry = gpListStopHead->Flink;
     while (pEntry != gpListStopHead)
     {
@@ -459,7 +457,7 @@ OnGetStopperNumber(
         pEntry = pEntry->Flink;
     }
 
-    ReleaseLock(&gStopLock, oldIrql);
+    ReleaseLock();
 
     return status;
 }
@@ -481,7 +479,6 @@ OnAddStop(
     PSTOP_DATA pExistingStop = NULL;
     BOOLEAN bAddNewEntry = TRUE;
     SIZE_T stSize = 0;
-    KIRQL oldIrql;
 
     if (IsEnabled() == FALSE)
     {
@@ -489,9 +486,6 @@ OnAddStop(
     }
 
     FLT_ASSERT(gpListStopHead);
-    FLT_ASSERT(gStopLock);
-
-    oldIrql = ExclusiveLock(&gStopLock);
 
     pStop = (PSTOP_DATA) AllocateMemory(POOL_FLAG_NON_PAGED,
                                         sizeof(STOP_DATA),
@@ -539,6 +533,8 @@ OnAddStop(
         RtlCopyMemory(pStop->pstrPathContain, pstrPathContain, stSize);
     }
 
+    ExclusiveLock();
+
     pEntry = gpListStopHead->Flink;
     while (pEntry != gpListStopHead)
     {
@@ -572,7 +568,7 @@ Cleanup:
         RemoveStopEntry(pStop);
     }
 
-    ReleaseLock(&gStopLock, oldIrql);
+    ReleaseLock();
 
     return status;
 }
@@ -584,7 +580,6 @@ OnCleanupStop(
     NTSTATUS status = STATUS_SUCCESS;
     PLIST_ENTRY pEntry = NULL;
     PSTOP_DATA pStop = NULL;
-    KIRQL oldIrql;
 
     FLT_ASSERT(gpListStopHead);
     FLT_ASSERT(gStopLock);
@@ -592,7 +587,7 @@ OnCleanupStop(
 
     *plNumber = 0;
 
-    oldIrql = ExclusiveLock(&gStopLock);
+    ExclusiveLock();
 
     while (IsListEmpty(gpListStopHead) != TRUE)
     {
@@ -603,28 +598,7 @@ OnCleanupStop(
         *plNumber++;
     }
 
-    ReleaseLock(&gStopLock, oldIrql);
+    ReleaseLock();
 
     return status;
 }
-
-NTSTATUS
-InitLock(
-    _Inout_ PERESOURCE *pLock)
-{
-    NTSTATUS status = STATUS_SUCCESS;
-
-    *pLock = (PERESOURCE) AllocateMemory(POOL_FLAG_NON_PAGED,
-                                         sizeof(ERESOURCE),
-                                         STOPPER_TAG);
-    status = ExInitializeResourceLite(*pLock);
-
-    if (NT_SUCCESS(status) == FALSE)
-    {
-        FreeMemory(*pLock);
-        *pLock = NULL;
-    }
-
-    return status;
-}
-

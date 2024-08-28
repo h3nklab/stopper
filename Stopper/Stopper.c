@@ -26,8 +26,7 @@ Environment:
 #pragma prefast(disable:__WARNING_ENCODE_MEMBER_FUNCTION_POINTER, "Not valid for kernel mode drivers")
 
 PLIST_ENTRY gpListStopHead = NULL;
-//PERESOURCE  gStopLock = NULL;
-KSPIN_LOCK gStopLock;
+PERESOURCE  gpStopLock = NULL;
 CHAR        gcEnabled = 1;
 
 PFLT_FILTER ghFilter = NULL;
@@ -542,12 +541,11 @@ DriverEntry (
                                                   STOPPER_TAG);
     InitializeListHead(gpListStopHead);
 
-    /*status = InitLock(&gStopLock);
+    status = InitLock();
     if (NT_SUCCESS(status) == FALSE)
     {
         return status;
-    }*/
-    KeInitializeSpinLock(&gStopLock);
+    }
 
     fpZwQueryInformationProcess = (ZWQUERYINFORMATIONPROCESS) MmGetSystemRoutineAddress(&usRoutineName);
     //
@@ -661,7 +659,6 @@ Return Value:
 --*/
 {
     PLIST_ENTRY pEntry = NULL;
-    KIRQL oldIrql;
 
     UNREFERENCED_PARAMETER( Flags );
 
@@ -678,7 +675,7 @@ Return Value:
 
     EnableDriver(FALSE);
 
-    oldIrql = ExclusiveLock(&gStopLock);
+    ExclusiveLock();
     if (gpListStopHead != NULL)
     {
         while (IsListEmpty(gpListStopHead) == FALSE)
@@ -694,7 +691,7 @@ Return Value:
         gpListStopHead = NULL;
     }
 
-    ReleaseLock(&gStopLock, oldIrql);
+    ReleaseLock();
 
     FltUnregisterFilter(ghFilter);
 
@@ -937,4 +934,46 @@ Return Value:
               ((iopb->MajorFunction == IRP_MJ_DIRECTORY_CONTROL) &&
                (iopb->MinorFunction == IRP_MN_NOTIFY_CHANGE_DIRECTORY))
              );
+}
+
+
+NTSTATUS
+InitLock()
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    gpStopLock = (PERESOURCE) AllocateMemory(POOL_FLAG_NON_PAGED,
+                                             sizeof(ERESOURCE),
+                                             STOPPER_TAG);
+    status = ExInitializeResourceLite(gpStopLock);
+
+    if (NT_SUCCESS(status) == FALSE)
+    {
+        FreeMemory(gpStopLock);
+        gpStopLock = NULL;
+    }
+
+    return status;
+}
+
+VOID
+ExclusiveLock()
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    if (gpStopLock == NULL)
+    {
+        status = InitLock();
+        if (NT_SUCCESS(status) == FALSE)
+        {
+            return;
+        }
+    }
+    ExAcquireResourceExclusiveLite(gpStopLock, TRUE);
+}
+
+VOID
+ReleaseLock()
+{
+    ExReleaseResourceLite(gpStopLock);
 }

@@ -1,8 +1,5 @@
 #pragma once
 
-#define ExclusiveLock KeAcquireSpinLockRaiseToDpc
-#define ReleaseLock KeReleaseSpinLock
-
 #define STOPPER_TAG 'TSDH'
 
 #define PTDBG_TRACE_ROUTINES            0x00000001
@@ -28,7 +25,6 @@ extern PFLT_FILTER ghFilter;
 extern ZWQUERYINFORMATIONPROCESS fpZwQueryInformationProcess;
 
 extern PLIST_ENTRY  gpListStopHead;
-extern KSPIN_LOCK gStopLock;
 extern CHAR gcEnabled;
 
 BOOLEAN
@@ -37,3 +33,12 @@ IsEnabled();
 VOID
 EnableDriver(
     _In_ BOOLEAN bEnable);
+
+NTSTATUS
+InitLock();
+
+VOID
+ExclusiveLock();
+
+VOID
+ReleaseLock();
