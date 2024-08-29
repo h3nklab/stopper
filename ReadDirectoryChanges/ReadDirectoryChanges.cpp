@@ -102,6 +102,7 @@ GetDirectoryChanges(
     BOOL bWrite = FALSE;
     DWORD dwAccess = 0;
     BOOL bRet = FALSE;
+    DWORD dwCount = 0;
 
     std::wcout << std::endl;
 
@@ -188,6 +189,10 @@ GetDirectoryChanges(
                       L"Failed on ReadDirectoryChanges");
             break;
         }
+
+        std::wcout << "Received " << dwReturnedLength << L" bytes of notification\n";
+        dwCount = 0;
+
         if (dwReturnedLength == 0)
         {
             // This means that we don't have enough buffer
@@ -216,13 +221,14 @@ GetDirectoryChanges(
 
             do
             {
+                dwCount++;
                 pInfo = (PFILE_NOTIFY_INFORMATION) pNextInfo;
                 PWSTR pstrFileName = (PWSTR) HeapAlloc(GetProcessHeap(),
                                                        HEAP_ZERO_MEMORY,
                                                        pInfo->FileNameLength + sizeof(wchar_t));
 
                 CopyMemory(pstrFileName, pInfo->FileName, pInfo->FileNameLength);
-                std::wcout << pstrFileName << L": " << GetActionString(pInfo->Action) << std::endl;
+                std::wcout << L"    " << dwCount << L". " << pstrFileName << L": " << GetActionString(pInfo->Action) << std::endl;
                 HeapFree(GetProcessHeap(), 0, pstrFileName);
 
                 pNextInfo = ((PCHAR) pInfo) + pInfo->NextEntryOffset;
