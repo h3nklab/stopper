@@ -192,7 +192,6 @@ NeedStop(
         return FALSE;
     }
 
-    FLT_ASSERT(gStopLock);
     FLT_ASSERT(gpListStopHead);
 
     status = GetProcessImageFile(&pstrProcessName, &pstrCommandLine);
@@ -380,7 +379,6 @@ OnClearStop(
     unsigned char cStopMajor;
     unsigned char cStopMinor;
 
-    FLT_ASSERT(gStopLock);
     FLT_ASSERT(gpListStopHead);
 
     ExclusiveLock();
@@ -445,7 +443,6 @@ OnGetStopperNumber(
     PLIST_ENTRY pEntry = NULL;
 
     FLT_ASSERT(gpListStopHead);
-    FLT_ASSERT(gStopLock);
 
     *plNumber = 0;
 
@@ -582,7 +579,6 @@ OnCleanupStop(
     PSTOP_DATA pStop = NULL;
 
     FLT_ASSERT(gpListStopHead);
-    FLT_ASSERT(gStopLock);
     FLT_ASSERT(plNumber);
 
     *plNumber = 0;
@@ -599,6 +595,175 @@ OnCleanupStop(
     }
 
     ReleaseLock();
+
+    return status;
+}
+
+
+NTSTATUS
+HdevGetFileNameFromPath(
+    _In_ POOL_TYPE poolType,
+    _In_ PUNICODE_STRING pusPath,
+    _Out_ PUNICODE_STRING pusParentPath,
+    _Out_ PUNICODE_STRING pusFileName,
+    _In_ BOOLEAN bCopyString)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    PWCHAR ptr = NULL;
+    USHORT sOffset = 0;
+
+    if ((pusPath == NULL) ||
+        (pusPath->Buffer == NULL) ||
+        (pusPath->Length == 0))
+    {
+        status = STATUS_INVALID_PARAMETER;
+        goto Cleanup;
+    }
+
+    ptr = pusPath->Buffer;
+    ptr += (pusPath->Length / sizeof(WCHAR));
+
+    do
+    {
+        sOffset += sizeof(WCHAR);
+        ptr--;
+    } while ((*ptr != STOPPER_SEPARATOR) && (ptr > pusPath->Buffer));
+
+    if (pusFileName != NULL)
+    {
+        if (*ptr == STOPPER_SEPARATOR)
+        {
+            ptr++;
+            pusFileName->Length = sOffset - sizeof(WCHAR);
+        }
+        else
+        {
+            pusFileName->Length = sOffset;
+        }
+
+        if (pusFileName->Length > 0)
+        {
+            if (bCopyString)
+            {
+                pusFileName->Buffer = ExAllocatePoolZero(poolType,
+                                                         pusFileName->Length,
+                                                         STOPPER_TAG);
+                if (pusFileName->Buffer == NULL)
+                {
+                    status = STATUS_INSUFFICIENT_RESOURCES;
+                    goto Cleanup;
+                }
+
+                RtlCopyMemory(pusFileName->Buffer,
+                              ptr,
+                              pusFileName->Length);
+            }
+            else
+            {
+                pusFileName->Buffer = pusPath->Buffer + ((pusPath->Length - sOffset) / sizeof(WCHAR));
+                pusFileName->Length = sOffset;
+
+                if (pusFileName->Buffer[0] == STOPPER_SEPARATOR)
+                {
+                    pusFileName->Buffer++;
+                    pusFileName->Length -= sizeof(WCHAR);
+                }
+            }
+            pusFileName->MaximumLength = pusFileName->Length;
+        }
+        else
+        {
+            status = STATUS_NO_MORE_FILES;
+        }
+    }
+
+    if (pusParentPath != NULL)
+    {
+        pusParentPath->Length = pusPath->Length - sOffset;
+        if (pusParentPath->Length > 0)
+        {
+            if (bCopyString)
+            {
+                pusParentPath->Buffer = ExAllocatePoolZero(poolType,
+                                                           pusParentPath->Length,
+                                                           STOPPER_TAG);
+                if (pusParentPath->Buffer == NULL)
+                {
+                    status = STATUS_INSUFFICIENT_RESOURCES;
+                    goto Cleanup;
+                }
+
+                RtlCopyMemory(pusParentPath->Buffer,
+                              pusPath->Buffer,
+                              pusParentPath->Length);
+            }
+            else
+            {
+                pusParentPath->Buffer = pusPath->Buffer;
+            }
+            pusParentPath->MaximumLength = pusParentPath->Length;
+        }
+        else
+        {
+            status = STATUS_NO_MORE_ENTRIES;
+        }
+    }
+
+Cleanup:
+    if (NT_SUCCESS(status) == FALSE)
+    {
+        if (bCopyString)
+        {
+            if (status != STATUS_NO_MORE_ENTRIES)
+            {
+                HdevFreeUnicodeString(pusFileName);
+            }
+
+            if (status != STATUS_NO_MORE_FILES)
+            {
+                HdevFreeUnicodeString(pusParentPath);
+            }
+        }
+    }
+
+    return status;
+}
+
+VOID
+HdevFreeUnicodeString(
+    _Inout_ PUNICODE_STRING pusString)
+{
+    FLT_ASSERT(pusString);
+
+    if (pusString->Buffer != NULL)
+    {
+        ExFreePool(pusString->Buffer);
+        pusString->Buffer = NULL;
+        pusString->Length = 0;
+        pusString->MaximumLength = 0;
+    }
+}
+
+
+NTSTATUS
+HdevCopyUnicodeString(
+    _In_ POOL_TYPE poolType,
+    _Out_ PUNICODE_STRING pusDst,
+    _In_ PCUNICODE_STRING pusSrc)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+
+    pusDst->Buffer = ExAllocatePoolZero(poolType,
+                                        pusSrc->MaximumLength,
+                                        STOPPER_TAG);
+    if (NT_SUCCESS(status) == FALSE)
+    {
+        return status;
+    }
+
+    RtlCopyMemory(pusDst->Buffer, pusSrc->Buffer, pusSrc->Length);
+    pusDst->Length = pusSrc->Length;
+    pusDst->MaximumLength = pusSrc->MaximumLength;
 
     return status;
 }

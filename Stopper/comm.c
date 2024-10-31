@@ -63,7 +63,7 @@ StopperDisconnect(
     InterlockedDecrement(&glConnectionCount);
     if (pContext != NULL)
     {
-        FltCloseClientPort(ghFilter, &pContext->pClientPort);
+        FltCloseClientPort(gpFilter, &pContext->pClientPort);
         FreeMemory(pContext);
     }
 }

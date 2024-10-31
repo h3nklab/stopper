@@ -29,10 +29,10 @@ PLIST_ENTRY gpListStopHead = NULL;
 PERESOURCE  gpStopLock = NULL;
 CHAR        gcEnabled = 1;
 
-PFLT_FILTER ghFilter = NULL;
+PFLT_FILTER gpFilter = NULL;
 ULONG_PTR   OperationStatusCtx = 1;
 PFLT_PORT gCommPort = NULL;
-ULONG gTraceFlags = 1;
+ULONG gTraceFlags = 0xFFFFFFFF;
 
 ZWQUERYINFORMATIONPROCESS fpZwQueryInformationProcess = NULL;
 
@@ -129,6 +129,25 @@ EXTERN_C_END
 #pragma alloc_text(PAGE, StopperInstanceTeardownStart)
 #pragma alloc_text(PAGE, StopperInstanceTeardownComplete)
 #endif
+
+
+const FLT_CONTEXT_REGISTRATION ContextRegistration[] = {
+
+    {
+        FLT_FILE_CONTEXT,
+        0,
+        CleanupFileContext,
+        sizeof(STOPPER_FILE_CONTEXT),
+        STOPPER_TAG,
+        NULL,
+        NULL,
+        NULL
+    },
+
+    {
+        FLT_CONTEXT_END
+    }
+};
 
 //
 //  operation registration
@@ -344,7 +363,7 @@ CONST FLT_REGISTRATION FilterRegistration = {
     FLT_REGISTRATION_VERSION,          //  Version
     0,                                 //  Flags
 
-    NULL,                              //  Context
+    ContextRegistration,               //  Context
     Callbacks,                         //  Operation callbacks
 
     StopperUnload,                     //  MiniFilterUnload
@@ -554,7 +573,7 @@ DriverEntry (
 
     status = FltRegisterFilter( DriverObject,
                                 &FilterRegistration,
-                                &ghFilter);
+                                &gpFilter);
 
     FLT_ASSERT(NT_SUCCESS(status));
 
@@ -602,7 +621,7 @@ DriverEntry (
                                NULL,
                                pSecuredSD);
 
-    status = FltCreateCommunicationPort(ghFilter,
+    status = FltCreateCommunicationPort(gpFilter,
                                         &gCommPort,
                                         &oa,
                                         NULL,
@@ -618,12 +637,12 @@ DriverEntry (
     //  Start filtering i/o
     //
 
-    status = FltStartFiltering(ghFilter);
+    status = FltStartFiltering(gpFilter);
 
     if (!NT_SUCCESS(status))
     {
 
-        FltUnregisterFilter(ghFilter);
+        FltUnregisterFilter(gpFilter);
     }
 
 Cleanup:
@@ -693,7 +712,7 @@ Return Value:
 
     ReleaseLock();
 
-    FltUnregisterFilter(ghFilter);
+    FltUnregisterFilter(gpFilter);
 
     return STATUS_SUCCESS;
 }
@@ -711,8 +730,17 @@ StopperPreOperation (
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( CompletionContext );
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Stopper!StopperPreOperation: Entered\n") );
+    //FLT_ASSERT(IoGetTopLevelIrp() == NULL);
+
+    if (IoGetTopLevelIrp() != NULL)
+    {
+        return FLT_PREOP_SUCCESS_NO_CALLBACK;
+    }
+
+    if (FLT_IS_FASTIO_OPERATION(pData))
+    {
+        return  FLT_PREOP_DISALLOW_FASTIO;
+    }
 
     if (IsEnabled() == FALSE)
     {
@@ -823,9 +851,6 @@ Return Value:
     UNREFERENCED_PARAMETER(pCompletionContext);
     UNREFERENCED_PARAMETER(flags);
 
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Stopper!StopperPostOperation: Entered\n") );
-
     if (IsEnabled() == FALSE)
     {
         return FLT_POSTOP_FINISHED_PROCESSING;
@@ -874,9 +899,6 @@ Return Value:
     UNREFERENCED_PARAMETER( Data );
     UNREFERENCED_PARAMETER( FltObjects );
     UNREFERENCED_PARAMETER( CompletionContext );
-
-    PT_DBG_PRINT( PTDBG_TRACE_ROUTINES,
-                  ("Stopper!StopperPreOperationNoPostOperation: Entered\n") );
 
     // This template code does not do anything with the callbackData, but
     // rather returns FLT_PREOP_SUCCESS_NO_CALLBACK.
@@ -976,4 +998,26 @@ VOID
 ReleaseLock()
 {
     ExReleaseResourceLite(gpStopLock);
+}
+
+VOID
+CleanupFileContext(
+    _In_ PFLT_CONTEXT pContext,
+    _In_ FLT_CONTEXT_TYPE contextType)
+{
+    PSTOPPER_FILE_CONTEXT pCtx = (PSTOPPER_FILE_CONTEXT) pContext;
+
+    UNREFERENCED_PARAMETER(contextType);
+
+    if (pCtx != NULL)
+    {
+        __debugbreak();
+        if (pCtx->usFileName.Buffer != NULL)
+        {
+            ExFreePool(pCtx->usFileName.Buffer);
+            pCtx->usFileName.Buffer = NULL;
+            pCtx->usFileName.Length = 0;
+            pCtx->usFileName.MaximumLength = 0;
+        }
+    }
 }

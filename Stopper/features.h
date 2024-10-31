@@ -68,3 +68,21 @@ NeedStop(
 VOID
 RemoveStopEntry(
     _In_ PSTOP_DATA pStop);
+
+NTSTATUS
+HdevGetFileNameFromPath(
+    _In_ POOL_TYPE poolType,
+    _In_ PUNICODE_STRING pusPath,
+    _Out_ PUNICODE_STRING pusParentPath,
+    _Out_ PUNICODE_STRING pusFileName,
+    _In_ BOOLEAN bCopyString);
+
+VOID
+HdevFreeUnicodeString(
+    _Inout_ PUNICODE_STRING pusString);
+
+NTSTATUS
+HdevCopyUnicodeString(
+    _In_ POOL_TYPE poolType,
+    _Out_ PUNICODE_STRING pusDst,
+    _In_ PCUNICODE_STRING pusSrc);

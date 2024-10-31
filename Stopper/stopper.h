@@ -1,6 +1,7 @@
 #pragma once
 
-#define STOPPER_TAG 'TSDH'
+#define STOPPER_TAG                     'TSDH'
+#define STOPPER_SEPARATOR               L'\\'
 
 #define PTDBG_TRACE_ROUTINES            0x00000001
 #define PTDBG_TRACE_OPERATION_STATUS    0x00000002
@@ -12,6 +13,10 @@ extern ULONG gTraceFlags;
         DbgPrint _string :                          \
         ((int)0))
 
+typedef struct _STOPPER_FILE_CONTEXT
+{
+    UNICODE_STRING usFileName;
+} STOPPER_FILE_CONTEXT, *PSTOPPER_FILE_CONTEXT;
 
 typedef
 (*ZWQUERYINFORMATIONPROCESS) (
@@ -21,11 +26,16 @@ typedef
     _In_ ULONG ulProcessInformationLength,
     _Out_opt_ PULONG pulReturnLength);
 
-extern PFLT_FILTER ghFilter;
+extern PFLT_FILTER gpFilter;
 extern ZWQUERYINFORMATIONPROCESS fpZwQueryInformationProcess;
 
 extern PLIST_ENTRY  gpListStopHead;
 extern CHAR gcEnabled;
+
+VOID
+CleanupFileContext(
+    _In_ PFLT_CONTEXT pContext,
+    _In_ FLT_CONTEXT_TYPE contextType);
 
 BOOLEAN
 IsEnabled();
