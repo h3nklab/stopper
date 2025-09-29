@@ -184,6 +184,9 @@ NeedStop(
     PWCHAR pstrPath = NULL;
     BOOLEAN bCrash = FALSE;
     HANDLE hPid;
+    UNICODE_STRING ustrUpperCase = {0};
+    UNICODE_STRING ustrProcessName;
+    USHORT usLength;
 
     PAGED_CODE();
 
@@ -208,6 +211,8 @@ NeedStop(
     ExclusiveLock();
     pEntry = gpListStopHead->Flink;
     ReleaseLock();
+
+    RtlZeroMemory(&ustrProcessName, sizeof(UNICODE_STRING));
 
     while ((pEntry != gpListStopHead) && (bReturn == FALSE))
     {
@@ -244,7 +249,36 @@ NeedStop(
 
         if (pStop->pstrProcessName != NULL)
         {
-            if (_wcsicmp(pstrProcessName, pStop->pstrProcessName) != 0)
+            usLength = (USHORT) ((wcslen(pstrProcessName) + 1) * sizeof(WCHAR));
+            ustrProcessName.Buffer = AllocateMemory(POOL_FLAG_NON_PAGED,
+                                                    usLength,
+                                                    STOPPER_TAG);
+            if (ustrProcessName.Buffer == NULL)
+            {
+                goto Cleanup;
+            }
+
+            RtlCopyMemory(ustrProcessName.Buffer, pstrProcessName, usLength);
+            ustrProcessName.Length = usLength - (USHORT)(sizeof(WCHAR));
+            ustrProcessName.MaximumLength = usLength;
+
+            status = RtlUpcaseUnicodeString(&ustrUpperCase,
+                                            &ustrProcessName,
+                                            TRUE);
+            if (NT_SUCCESS(status) == FALSE)
+            {
+                FreeMemory(ustrProcessName.Buffer);
+                ustrProcessName.Buffer = NULL;
+                ustrProcessName.Length = ustrProcessName.MaximumLength = 0;
+                goto Cleanup;
+            }
+
+            RtlCopyMemory(pstrProcessName, ustrUpperCase.Buffer, ustrUpperCase.Length);
+            FreeMemory(ustrProcessName.Buffer);
+            ustrProcessName.Length = ustrProcessName.MaximumLength = 0;
+            RtlFreeUnicodeString(&ustrUpperCase);
+
+            if (wcsstr(pstrProcessName, pStop->pstrProcessName) == NULL)
             {
                 bReturn = FALSE;
                 pEntry = pEntry->Flink;
@@ -254,19 +288,33 @@ NeedStop(
 
         if (pStop->pstrPathContain != NULL)
         {
+            status = RtlUpcaseUnicodeString(&ustrUpperCase,
+                                            &pData->Iopb->TargetFileObject->FileName,
+                                            TRUE);
+            if (NT_SUCCESS(status) == FALSE)
+            {
+                bReturn = FALSE;
+                pEntry = pEntry->Flink;
+                continue;
+            }
+
             FreeMemory(pstrPath);
             pstrPath = AllocateMemory(POOL_FLAG_NON_PAGED,
-                                      pData->Iopb->TargetFileObject->FileName.Length + sizeof(WCHAR),
+                                      ustrUpperCase.Length + sizeof(WCHAR),
                                       STOPPER_TAG);
             if (pstrPath == NULL)
             {
+                RtlFreeUnicodeString(&ustrUpperCase);
                 bReturn = FALSE;
                 goto Cleanup;
             }
 
+            RtlZeroMemory(pstrPath, ustrUpperCase.Length + sizeof(WCHAR));
+
             RtlCopyMemory(pstrPath,
-                          pData->Iopb->TargetFileObject->FileName.Buffer,
-                          pData->Iopb->TargetFileObject->FileName.Length);
+                          ustrUpperCase.Buffer,
+                          ustrUpperCase.Length);
+            RtlFreeUnicodeString(&ustrUpperCase);
 
             if (wcsstr(pstrPath, pStop->pstrPathContain) == NULL)
             {
@@ -317,6 +365,10 @@ Cleanup:
     FreeMemory(pstrProcessName);
     FreeMemory(pstrPath);
     FreeMemory(pstrCommandLine);
+    if (ustrProcessName.Buffer != NULL)
+    {
+        FreeMemory(ustrProcessName.Buffer);
+    }
 
     if (bReturn == TRUE && bCrash == TRUE)
     {
@@ -476,6 +528,7 @@ OnAddStop(
     PSTOP_DATA pExistingStop = NULL;
     BOOLEAN bAddNewEntry = TRUE;
     SIZE_T stSize = 0;
+    SIZE_T stCount = 0;
 
     if (IsEnabled() == FALSE)
     {
@@ -527,7 +580,12 @@ OnAddStop(
             goto Cleanup;
         }
 
-        RtlCopyMemory(pStop->pstrPathContain, pstrPathContain, stSize);
+        for (stCount = 0; stCount < (stSize / sizeof(WCHAR)); stCount++)
+        {
+            pStop->pstrPathContain[stCount] = RtlUpcaseUnicodeChar(pstrPathContain[stCount]);
+        }
+
+        pStop->pstrPathContain[stCount] = L'\0';
     }
 
     ExclusiveLock();

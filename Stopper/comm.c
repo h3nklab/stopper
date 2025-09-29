@@ -129,7 +129,7 @@ StopperMessage(
                 break;
 
             case CMD_CRASH:
-                KeBugCheck(MANUALLY_INITIATED_CRASH1);
+                KeBugCheckEx(MANUALLY_INITIATED_CRASH1, 0, 0, 0, 0);
                 break;
 
             case CMD_GET_STOPPER_NUMBER:
