@@ -275,6 +275,7 @@ NeedStop(
 
             RtlCopyMemory(pstrProcessName, ustrUpperCase.Buffer, ustrUpperCase.Length);
             FreeMemory(ustrProcessName.Buffer);
+            ustrProcessName.Buffer = NULL;
             ustrProcessName.Length = ustrProcessName.MaximumLength = 0;
             RtlFreeUnicodeString(&ustrUpperCase);
 

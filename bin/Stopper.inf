@@ -8,7 +8,7 @@ Signature   = "$Windows NT$"
 Class       = "ActivityMonitor"                         ;This is determined by the work this filter driver does
 ClassGuid   = {b86dff51-a31e-4bac-b3cf-e8cfe75c9fc2}    ;This value is determined by the Load Order Group value
 Provider    = %ProviderName%
-DriverVer = 09/29/2025,21.59.47.841
+DriverVer = 09/29/2025,22.50.45.812
 CatalogFile = Stopper.cat
 PnpLockDown = 1
 
