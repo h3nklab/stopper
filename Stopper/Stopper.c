@@ -737,10 +737,10 @@ StopperPreOperation (
         return FLT_PREOP_SUCCESS_NO_CALLBACK;
     }
 
-    if (FLT_IS_FASTIO_OPERATION(pData))
+    /*if (FLT_IS_FASTIO_OPERATION(pData))
     {
         return  FLT_PREOP_DISALLOW_FASTIO;
-    }
+    }*/
 
     if (IsEnabled() == FALSE)
     {
