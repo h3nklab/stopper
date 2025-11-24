@@ -11,4 +11,4 @@ To use:
 2. To get command help, just run stpcmd.exe
 
 3. To add breakpoint use command ADD.
-   i.e.: stpcmd ADD /mj 0 /act false
+   i.e.: stpcmd ADD /mj 0 /act false 
